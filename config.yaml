@@ -135,44 +135,148 @@ fantasy:
       - final_fix          # One penalty-free transfer between qualifying end and race start
 
 
-# --- Opening 2026 Prices (Round 1 baseline, February 26 2026) ---
+# --- Current 2026 Prices (updated after R2 China) ---
 prices:
   drivers:
-    VER: {name: "Max Verstappen",    team: "red_bull",      price: 27.7}
-    RUS: {name: "George Russell",    team: "mercedes",      price: 27.4}
-    NOR: {name: "Lando Norris",      team: "mclaren",       price: 27.2}
-    PIA: {name: "Oscar Piastri",     team: "mclaren",       price: 25.5}
-    ANT: {name: "Kimi Antonelli",    team: "mercedes",      price: 23.2}
-    LEC: {name: "Charles Leclerc",   team: "ferrari",       price: 22.8}
-    HAM: {name: "Lewis Hamilton",    team: "ferrari",       price: 22.5}
-    HAD: {name: "Isack Hadjar",      team: "racing_bulls",  price: 15.1}
-    GAS: {name: "Pierre Gasly",      team: "alpine",        price: 12.0}
-    SAI: {name: "Carlos Sainz",      team: "williams",      price: 11.8}
-    ALB: {name: "Alexander Albon",   team: "williams",      price: 11.6}
-    ALO: {name: "Fernando Alonso",   team: "aston_martin",  price: 10.0}
-    STR: {name: "Lance Stroll",      team: "aston_martin",  price: 8.0}
-    BEA: {name: "Oliver Bearman",    team: "haas",          price: 7.4}
-    OCO: {name: "Esteban Ocon",      team: "haas",          price: 7.3}
-    HUL: {name: "Nico Hulkenberg",   team: "audi",          price: 6.8}
-    LAW: {name: "Liam Lawson",       team: "red_bull",      price: 6.5}
+    VER: {name: "Max Verstappen",    team: "red_bull",      price: 28.1}
+    RUS: {name: "George Russell",    team: "mercedes",      price: 28.0}
+    NOR: {name: "Lando Norris",      team: "mclaren",       price: 26.8}
+    PIA: {name: "Oscar Piastri",     team: "mclaren",       price: 24.9}
+    ANT: {name: "Kimi Antonelli",    team: "mercedes",      price: 23.8}
+    LEC: {name: "Charles Leclerc",   team: "ferrari",       price: 23.4}
+    HAM: {name: "Lewis Hamilton",    team: "ferrari",       price: 22.9}
+    HAD: {name: "Isack Hadjar",      team: "red_bull",      price: 13.9}
+    GAS: {name: "Pierre Gasly",      team: "alpine",        price: 12.8}
+    SAI: {name: "Carlos Sainz",      team: "williams",      price: 12.2}
+    ALB: {name: "Alexander Albon",   team: "williams",      price: 10.8}
+    ALO: {name: "Fernando Alonso",   team: "aston_martin",  price: 8.8}
+    BEA: {name: "Oliver Bearman",    team: "haas",          price: 8.6}
+    OCO: {name: "Esteban Ocon",      team: "haas",          price: 8.5}
+    LIN: {name: "Arvid Lindblad",    team: "racing_bulls",  price: 7.4}
+    COL: {name: "Franco Colapinto",  team: "alpine",        price: 7.0}
+    LAW: {name: "Liam Lawson",       team: "racing_bulls",  price: 6.9}
+    STR: {name: "Lance Stroll",      team: "aston_martin",  price: 6.8}
     BOR: {name: "Gabriel Bortoleto", team: "audi",          price: 6.4}
-    LIN: {name: "Arvid Lindblad",    team: "racing_bulls",  price: 6.2}
-    COL: {name: "Franco Colapinto",  team: "alpine",        price: 6.2}
-    PER: {name: "Sergio Perez",      team: "cadillac",      price: 6.0}
-    BOT: {name: "Valtteri Bottas",   team: "cadillac",      price: 5.9}
+    PER: {name: "Sergio Perez",      team: "cadillac",      price: 6.4}
+    HUL: {name: "Nico Hulkenberg",   team: "audi",          price: 5.6}
+    BOT: {name: "Valtteri Bottas",   team: "cadillac",      price: 4.7}
 
   constructors:
-    mercedes:      {name: "Mercedes",           price: 29.3}
-    mclaren:       {name: "McLaren",            price: 28.9}
-    red_bull:      {name: "Red Bull Racing",    price: 28.2}
-    ferrari:       {name: "Ferrari",            price: 23.3}
-    alpine:        {name: "Alpine",             price: 12.5}
-    williams:      {name: "Williams",           price: 12.0}
-    aston_martin:  {name: "Aston Martin",       price: 10.3}
-    haas:          {name: "Haas",               price: 7.4}
-    audi:          {name: "Audi",               price: 6.6}
-    racing_bulls:  {name: "Racing Bulls",       price: 6.3}
-    cadillac:      {name: "Cadillac",           price: 6.0}
+    mercedes:      {name: "Mercedes",           price: 29.9}
+    red_bull:      {name: "Red Bull Racing",    price: 28.8}
+    mclaren:       {name: "McLaren",            price: 28.5}
+    ferrari:       {name: "Ferrari",            price: 23.9}
+    alpine:        {name: "Alpine",             price: 13.7}
+    williams:      {name: "Williams",           price: 13.2}
+    aston_martin:  {name: "Aston Martin",       price: 9.1}
+    haas:          {name: "Haas",               price: 8.6}
+    racing_bulls:  {name: "Racing Bulls",       price: 7.5}
+    audi:          {name: "Audi",               price: 5.4}
+    cadillac:      {name: "Cadillac",           price: 5.2}
+
+# --- Historical Opening Prices (for backtests) ---
+# Used by src.price.PriceModel for season-specific backtesting.
+# Values below are 2025 Round 1 opening prices (AUS column) provided manually.
+historical_prices:
+  "2023":
+    drivers:
+      VER: 26.9
+      HAM: 23.7
+      LEC: 21.2
+      PER: 18.0
+      RUS: 18.6
+      SAI: 17.2
+      NOR: 11.2
+      ALO: 8.3
+      OCO: 9.4
+      GAS: 8.1
+      PIA: 7.0
+      STR: 7.5
+      BOT: 7.8
+      ALB: 5.5
+      MAG: 6.7
+      ZHO: 4.9
+      TSU: 4.8
+      DEV: 5.0
+      HUL: 4.3
+      SAR: 4.0
+    constructors:
+      red_bull: 27.2
+      mercedes: 25.1
+      ferrari: 22.1
+      mclaren: 9.1
+      alpine: 10.1
+      aston_martin: 6.7
+      racing_bulls: 6.4
+      audi: 6.2
+      williams: 5.1
+      haas: 5.3
+  "2024":
+    drivers:
+      VER: 30.0
+      NOR: 23.0
+      LEC: 19.1
+      PER: 20.8
+      PIA: 19.0
+      HAM: 19.3
+      SAI: 18.5
+      RUS: 18.8
+      ALO: 15.8
+      STR: 10.7
+      OCO: 7.8
+      MAG: 6.2
+      RIC: 9.0
+      TSU: 8.0
+      GAS: 7.8
+      HUL: 6.4
+      ALB: 7.0
+      ZHO: 6.6
+      BOT: 6.4
+      SAR: 5.5
+    constructors:
+      red_bull: 27.9
+      mclaren: 23.2
+      ferrari: 19.3
+      mercedes: 20.1
+      aston_martin: 13.6
+      racing_bulls: 8.5
+      alpine: 8.4
+      haas: 6.3
+      audi: 6.6
+      williams: 6.3
+  "2025":
+    drivers:
+      NOR: 29.0
+      VER: 28.4
+      PIA: 23.0
+      LEC: 25.9
+      HAM: 24.2
+      RUS: 21.0
+      LAW: 18.0
+      ANT: 18.4
+      TSU: 9.6
+      ALB: 12.0
+      STR: 8.1
+      SAI: 13.1
+      OCO: 7.3
+      BEA: 6.7
+      HUL: 6.4
+      GAS: 11.8
+      ALO: 8.8
+      DOO: 7.2
+      HAD: 6.2
+      BOR: 6.0
+    constructors:
+      mclaren: 30.0
+      ferrari: 27.1
+      red_bull: 25.2
+      mercedes: 22.7
+      williams: 13.1
+      racing_bulls: 8.0
+      haas: 7.0
+      aston_martin: 8.5
+      alpine: 9.5
+      audi: 6.2
 
 
 # --- Circuit Classification ---
@@ -494,12 +598,12 @@ regulation:
   # era_weight: 0.0 = trust only pre-2026 history, 1.0 = trust only 2026 observed
   # Increase this as the season progresses and the car hierarchy clarifies.
   # Suggested schedule: R1=0.05, R3=0.18, R5=0.40, R8=0.75, R10=0.89
-  era_weight: 0.05
+  era_weight: 0.18
 
   # uncertainty_multiplier: widens prediction intervals to account for the
   # genuinely unknown 2026 car hierarchy. Start at 2.0 (double the normal
   # spread) and reduce toward 1.0 as results clarify (~R8-R10).
-  uncertainty_multiplier: 2.0
+  uncertainty_multiplier: 1.6
 
   # Suggested convergence schedule (for reference — you set era_weight manually):
   # R1: 0.05, R2: 0.10, R3: 0.18, R4: 0.28, R5: 0.40, R6: 0.53
@@ -509,21 +613,25 @@ regulation:
 # --- Optimizer Settings ---
 optimizer:
   lookahead_races: 3           # Multi-week planning horizon
-  price_appreciation_weight: 0.3  # How much to value future price gains vs current points
+  price_appreciation_weight: 0.4  # Strict split tuning (train 2023-2024, one-shot test 2025)
   # "conservative" = minimize downside, "moderate" = balanced, "aggressive" = maximize upside
   risk_tolerance: "moderate"
+  initial_team_kpi:
+    enabled: true
+    num_alternatives: 50       # Feasible (<=100M) alternatives sampled for KPI percentile (daily iteration)
+    random_seed: 42
 
 
 # --- Current Team State (update after each race) ---
 # Set this to your actual team after each race weekend.
 current_team:
-  drivers: []        # e.g., ["VER", "NOR", "SAI", "ALO", "BOT"]
-  constructors: []   # e.g., ["mclaren", "williams"]
-  drs_boost: null    # e.g., "VER"
-  budget: 100.0      # Current budget (changes with price movements)
-  free_transfers: 2  # Available free transfers for next race
+  drivers: ["LAW", "SAI", "GAS", "BEA", "RUS"]
+  constructors: ["ferrari", "racing_bulls"]
+  drs_boost: "RUS"
+  budget: 2.5        # Bank remaining after R3 transfers
+  free_transfers: 2  # Standard allowance for next window (R4)
   banked_transfers: 0
-  chips_used: []     # e.g., ["wildcard", "no_negative"]
+  chips_used: []
   chips_remaining:
     - autopilot
     - extra_drs_boost
@@ -532,14 +640,20 @@ current_team:
     - limitless
     - final_fix
 
+  # R3 transfer log:
+  # Sold: BOR (6.4M), PER (6.4M)
+  # Bought: BEA (8.6M), GAS (12.8M)
+  # Used 2 of 2 free transfers. No chips played.
+  # R4 priority: monitor SAI (expensive for Williams), consider ANT if budget allows
+
 
 # --- Weather Override (update before each race weekend) ---
 # Set the rain probability based on the weather forecast for the weekend.
 # 0.0 = definitely dry, 1.0 = definitely wet
 weather_override:
-  next_race_round: 1
-  rain_probability: 0.1
-  notes: ""  # e.g., "Rain expected for qualifying, dry race"
+  next_race_round: 3
+  rain_probability: 0.25
+  notes: "JPN R3: Fri dry (3%), Sat qualifying 65% rain (afternoon showers), Sun race 0% dry+clear. Wet qualifying could scramble grid — benefits position-gain scorers if frontrunners slip."
 
 
 # --- Data Source Settings ---

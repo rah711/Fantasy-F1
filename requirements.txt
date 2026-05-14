@@ -29,6 +29,7 @@ PyYAML>=6.0.1            # Parse config.yaml
 # Visualization
 matplotlib>=3.9.0
 seaborn>=0.13.0
+streamlit>=1.40.0
 
 # Jupyter notebooks
 jupyter>=1.0.0
