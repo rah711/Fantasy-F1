@@ -1,0 +1,212 @@
+"""Read-side helpers for the visitor "follow the season" experience.
+
+All inputs come from files the owner wizard writes:
+  - data/fantasy/history.csv — one row per locked-in round (the model team)
+  - data/fantasy/results/round_NN_race.csv — official race results
+  - data/fantasy/competitors.csv (optional) — points for the human + pure-AI teams
+
+Functions here are pure (no Streamlit calls) so they're testable.
+"""
+
+from __future__ import annotations
+
+from collections import Counter
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+
+
+THREE_TEAM_LABELS = {
+    "human": "Pure human judgement",
+    "claude_chat": "Pure-AI Claude chat",
+    "model": "Vibe-coded data science model",
+}
+
+
+def competitors_path(project_root: str | Path) -> Path:
+    return Path(project_root) / "data" / "fantasy" / "competitors.csv"
+
+
+def history_path(project_root: str | Path) -> Path:
+    return Path(project_root) / "data" / "fantasy" / "history.csv"
+
+
+def race_result_path(project_root: str | Path, round_number: int) -> Path:
+    return Path(project_root) / "data" / "fantasy" / "results" / f"round_{int(round_number):02d}_race.csv"
+
+
+def load_history(project_root: str | Path) -> pd.DataFrame:
+    p = history_path(project_root)
+    if not p.exists():
+        return pd.DataFrame()
+    return pd.read_csv(p)
+
+
+def load_competitor_history(project_root: str | Path) -> pd.DataFrame:
+    """Returns a long-form df: round, team_key, team_name, points."""
+    p = competitors_path(project_root)
+    if not p.exists():
+        return pd.DataFrame(columns=["round", "team_key", "team_name", "points"])
+    df = pd.read_csv(p)
+    if "team_name" not in df.columns and "team_key" in df.columns:
+        df["team_name"] = df["team_key"].map(THREE_TEAM_LABELS).fillna(df["team_key"])
+    return df
+
+
+def latest_round_in_history(project_root: str | Path) -> int | None:
+    df = load_history(project_root)
+    if df.empty or "round" not in df.columns:
+        return None
+    return int(df["round"].astype(int).max())
+
+
+def cumulative_points_by_team(project_root: str | Path) -> pd.DataFrame:
+    """Long-form: round, team_key, team_name, cumulative_points.
+
+    Combines model team (from history.csv `actual_points`) with competitors.csv.
+    """
+    rows: list[dict[str, Any]] = []
+
+    hist = load_history(project_root)
+    if not hist.empty and "actual_points" in hist.columns:
+        h = hist.copy()
+        h["actual_points"] = pd.to_numeric(h["actual_points"], errors="coerce").fillna(0.0)
+        h = h.sort_values("round")
+        h["cumulative_points"] = h["actual_points"].cumsum()
+        for _, r in h.iterrows():
+            rows.append({
+                "round": int(r["round"]),
+                "team_key": "model",
+                "team_name": THREE_TEAM_LABELS["model"],
+                "cumulative_points": float(r["cumulative_points"]),
+                "round_points": float(r["actual_points"]),
+            })
+
+    comp = load_competitor_history(project_root)
+    if not comp.empty:
+        comp["points"] = pd.to_numeric(comp["points"], errors="coerce").fillna(0.0)
+        comp = comp.sort_values(["team_key", "round"])
+        comp["cumulative_points"] = comp.groupby("team_key")["points"].cumsum()
+        for _, r in comp.iterrows():
+            rows.append({
+                "round": int(r["round"]),
+                "team_key": str(r["team_key"]),
+                "team_name": str(r["team_name"]),
+                "cumulative_points": float(r["cumulative_points"]),
+                "round_points": float(r["points"]),
+            })
+
+    return pd.DataFrame(rows)
+
+
+def current_leaderboard(project_root: str | Path) -> pd.DataFrame:
+    """Latest cumulative points per team, sorted descending."""
+    cum = cumulative_points_by_team(project_root)
+    if cum.empty:
+        return pd.DataFrame(columns=["team_key", "team_name", "cumulative_points", "rank"])
+    latest = cum.sort_values("round").groupby("team_key", as_index=False).tail(1)
+    latest = latest.sort_values("cumulative_points", ascending=False).reset_index(drop=True)
+    latest["rank"] = latest.index + 1
+    return latest[["rank", "team_key", "team_name", "cumulative_points"]]
+
+
+def transfer_log(project_root: str | Path) -> pd.DataFrame:
+    """One row per team change: round, drivers_in, drivers_out, ctors_in, ctors_out, drs_boost."""
+    hist = load_history(project_root)
+    if hist.empty:
+        return pd.DataFrame()
+    hist = hist.sort_values("round").reset_index(drop=True)
+    rows = []
+    prev_drivers: set[str] = set()
+    prev_ctors: set[str] = set()
+    for _, r in hist.iterrows():
+        d = set(str(r["drivers"]).split(",")) if pd.notna(r["drivers"]) else set()
+        c = set(str(r["constructors"]).split(",")) if pd.notna(r["constructors"]) else set()
+        if not prev_drivers and not prev_ctors:
+            in_d, out_d, in_c, out_c = sorted(d), [], sorted(c), []
+        else:
+            in_d = sorted(d - prev_drivers)
+            out_d = sorted(prev_drivers - d)
+            in_c = sorted(c - prev_ctors)
+            out_c = sorted(prev_ctors - c)
+        rows.append({
+            "round": int(r["round"]),
+            "drivers_in": ", ".join(in_d) or "—",
+            "drivers_out": ", ".join(out_d) or "—",
+            "constructors_in": ", ".join(in_c) or "—",
+            "constructors_out": ", ".join(out_c) or "—",
+            "drs_boost": str(r.get("drs_boost", "") or ""),
+            "chips_used": str(r.get("chips_used", "") or ""),
+            "actual_points": r.get("actual_points", ""),
+            "notes": str(r.get("notes", "") or ""),
+        })
+        prev_drivers, prev_ctors = d, c
+    return pd.DataFrame(rows)
+
+
+def append_competitor_score(
+    project_root: str | Path,
+    round_number: int,
+    team_key: str,
+    points: float,
+    team_name: str | None = None,
+) -> Path:
+    """Insert/replace one round-team-score row in competitors.csv.
+
+    `team_key` should be one of the keys in THREE_TEAM_LABELS (e.g. "human",
+    "claude_chat"). `team_name` defaults to the canonical label.
+    """
+    p = competitors_path(project_root)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    name = team_name or THREE_TEAM_LABELS.get(team_key, team_key)
+
+    if p.exists():
+        df = pd.read_csv(p)
+    else:
+        df = pd.DataFrame(columns=["round", "team_key", "team_name", "points"])
+
+    # Replace existing row for (round, team_key)
+    if not df.empty:
+        mask = (df["round"].astype(int) == int(round_number)) & (df["team_key"].astype(str) == team_key)
+        df = df[~mask]
+
+    new_row = pd.DataFrame([{
+        "round": int(round_number),
+        "team_key": team_key,
+        "team_name": name,
+        "points": round(float(points), 2),
+    }])
+    df = pd.concat([df, new_row], ignore_index=True)
+    df = df.sort_values(["round", "team_key"]).reset_index(drop=True)
+    df.to_csv(p, index=False)
+    return p
+
+
+def driver_tenure(project_root: str | Path) -> pd.DataFrame:
+    """How many rounds each driver has been on the team."""
+    hist = load_history(project_root)
+    if hist.empty:
+        return pd.DataFrame(columns=["driver", "rounds_owned", "first_round", "last_round"])
+    counts: Counter[str] = Counter()
+    first_round: dict[str, int] = {}
+    last_round: dict[str, int] = {}
+    for _, r in hist.sort_values("round").iterrows():
+        rnd = int(r["round"])
+        for d in str(r["drivers"]).split(","):
+            d = d.strip()
+            if not d:
+                continue
+            counts[d] += 1
+            first_round.setdefault(d, rnd)
+            last_round[d] = rnd
+    rows = [
+        {
+            "driver": d,
+            "rounds_owned": counts[d],
+            "first_round": first_round[d],
+            "last_round": last_round[d],
+        }
+        for d in counts
+    ]
+    return pd.DataFrame(rows).sort_values("rounds_owned", ascending=False).reset_index(drop=True)

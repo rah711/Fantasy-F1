@@ -37,12 +37,20 @@ def generate_config_diff(old_cfg: dict[str, Any], new_cfg: dict[str, Any], file_
     return "".join(diff)
 
 
-def update_weather_override(cfg: dict[str, Any], round_number: int, rain_probability: float, notes: str) -> dict[str, Any]:
+def update_weather_override(
+    cfg: dict[str, Any],
+    round_number: int,
+    rain_probability: float,
+    notes: str,
+    temperature_c: float | None = None,
+) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
     out.setdefault("weather_override", {})
     out["weather_override"]["next_race_round"] = int(round_number)
     out["weather_override"]["rain_probability"] = float(max(0.0, min(1.0, rain_probability)))
     out["weather_override"]["notes"] = str(notes)
+    if temperature_c is not None:
+        out["weather_override"]["temperature_c"] = round(float(temperature_c), 1)
     return out
 
 
