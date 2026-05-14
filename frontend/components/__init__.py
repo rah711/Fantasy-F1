@@ -5,6 +5,18 @@ from frontend.components.common import (
     role_badge,
     show_diff,
 )
+from frontend.components.theme import (
+    F1_BLACK,
+    F1_DARK_GREY,
+    F1_LIGHT_GREY,
+    F1_OFF_WHITE,
+    F1_RED,
+    TEAM_COLORS,
+    driver_palette,
+    inject_theme,
+    role_pill,
+    team_color,
+)
 
 __all__ = [
     "role_badge",
@@ -12,4 +24,14 @@ __all__ = [
     "render_health_table",
     "show_diff",
     "file_download_button",
+    "inject_theme",
+    "role_pill",
+    "team_color",
+    "driver_palette",
+    "TEAM_COLORS",
+    "F1_RED",
+    "F1_BLACK",
+    "F1_DARK_GREY",
+    "F1_LIGHT_GREY",
+    "F1_OFF_WHITE",
 ]

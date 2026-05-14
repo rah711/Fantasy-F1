@@ -84,18 +84,25 @@ def require_auth() -> None:
     if auth_role() in {"owner", "visitor"}:
         return
 
-    st.title("Fantasy F1 Console Login")
-    st.info("Enter password to access the app.")
-    with st.form("login_form"):
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Login")
-    if submit:
-        role = _password_to_role(password)
-        if role is None:
-            st.error("Invalid password")
-        else:
-            st.session_state["auth_role"] = role
-            st.rerun()
+    from frontend.components import inject_theme
+    inject_theme()
+
+    st.title("Fantasy F1 2026")
+    st.caption("Three teams. One season. Who wins — model, human, or AI?")
+    st.write("")
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        with st.form("login_form"):
+            st.markdown("##### Enter access code")
+            password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password")
+            submit = st.form_submit_button("Enter the paddock", type="primary", use_container_width=True)
+        if submit:
+            role = _password_to_role(password)
+            if role is None:
+                st.error("Invalid password")
+            else:
+                st.session_state["auth_role"] = role
+                st.rerun()
     st.stop()
 
 
