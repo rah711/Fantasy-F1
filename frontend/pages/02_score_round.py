@@ -20,10 +20,14 @@ from frontend.state import (
 from src.ui_services import (
     THREE_TEAM_LABELS,
     append_competitor_score,
+    calendar_rounds,
     compute_team_points_for_round,
+    format_round_label,
     history_path,
+    is_cancelled,
     load_competitor_history,
     load_history,
+    previous_active_round,
     propose_files_pr,
     update_actual_points,
 )
@@ -50,18 +54,22 @@ st.caption("After each race: enter what each of the three teams actually scored.
 cfg = get_working_config()
 season = cfg.get("season", {})
 calendar = season.get("calendar", {})
-total_rounds = int(season.get("total_rounds", 24))
 weather = cfg.get("weather_override", {})
-default_round = max(1, int(weather.get("next_race_round", 1)) - 1)
+default_round = previous_active_round(calendar, int(weather.get("next_race_round", 1)))
 
 st.header("1. Pick the round")
-round_number = st.number_input(
+all_rounds = calendar_rounds(calendar, include_cancelled=True) or list(range(1, int(season.get("total_rounds", 24)) + 1))
+try:
+    default_index = all_rounds.index(default_round)
+except ValueError:
+    default_index = 0
+round_number = st.selectbox(
     "Round to score",
-    min_value=1, max_value=total_rounds, value=default_round, step=1,
+    options=all_rounds,
+    index=default_index,
+    format_func=lambda r: format_round_label(calendar, r),
+    help="Pick the round you're entering scores for. Cancelled rounds stay listed but flagged.",
 )
-event = calendar.get(int(round_number), {}) or calendar.get(round_number, {})
-if event:
-    st.caption(f"**R{int(round_number)} — {event.get('name', '')}** · {event.get('country', '')} · {event.get('dates', '')}")
 
 
 # ---------------------------------------------------------------------------
@@ -209,8 +217,13 @@ else:
         c = comp_df[["round", "team_name", "points"]].rename(columns={"team_name": "team"}).copy()
         summary = pd.concat([summary, c], ignore_index=True)
 
+    cancelled_rounds = {r for r in calendar_rounds(calendar) if is_cancelled(calendar, r)}
+    if cancelled_rounds and not summary.empty:
+        summary = summary[~summary["round"].astype(int).isin(cancelled_rounds)]
+
     if summary.empty:
         st.caption("No scores recorded yet.")
     else:
-        pivot = summary.pivot_table(index="round", columns="team", values="points", aggfunc="last")
+        summary["Race"] = summary["round"].astype(int).apply(lambda r: format_round_label(calendar, r, short=True))
+        pivot = summary.pivot_table(index="Race", columns="team", values="points", aggfunc="last")
         st.dataframe(pivot, use_container_width=True)

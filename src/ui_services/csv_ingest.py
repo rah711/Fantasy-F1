@@ -66,13 +66,14 @@ def ingest_driver_prices(cfg: dict[str, Any], csv_text: str) -> IngestResult:
     if not isinstance(target, dict):
         return IngestResult(ok=False, errors=["config.prices.drivers is not a dict"])
 
+    driver_lookup = _build_driver_name_lookup(cfg)
     warnings: list[str] = []
     updated = 0
     for i, row in df.iterrows():
         raw = str(row[code_col]).strip()
         if not raw or raw.lower() == "nan":
             continue
-        code = raw.upper()
+        code = _resolve_driver(raw, driver_lookup) or raw.upper()
         if code not in target:
             warnings.append(f"Unknown driver '{raw}' — not in config.prices.drivers (skipped)")
             continue
@@ -104,15 +105,15 @@ def ingest_constructor_prices(cfg: dict[str, Any], csv_text: str) -> IngestResul
     if not isinstance(target, dict):
         return IngestResult(ok=False, errors=["config.prices.constructors is not a dict"])
 
+    team_lookup = _build_team_name_lookup(cfg)
     warnings: list[str] = []
     updated = 0
     for i, row in df.iterrows():
         raw = str(row[code_col]).strip()
         if not raw or raw.lower() == "nan":
             continue
-        # Constructor IDs are lowercase + underscored in config (e.g. red_bull, racing_bulls)
-        cid = raw.lower().replace(" ", "_").replace("-", "_")
-        if cid not in target:
+        cid = _resolve_team(raw, team_lookup)
+        if cid is None or cid not in target:
             warnings.append(f"Unknown constructor '{raw}' — not in config.prices.constructors (skipped)")
             continue
         try:
@@ -136,14 +137,76 @@ _TEAM_RES_COLS = ["team", "constructor", "constructor_id", "team_id"]
 _POINTS_COLS = ["points", "pts"]
 _FL_COLS = ["fastest_lap", "fl", "fastest"]
 _DOTD_COLS = ["dotd", "driver_of_the_day", "driver_of_day"]
-_DNF_COLS = ["dnf", "retired", "out", "status"]
+_DNF_COLS = ["dnf", "retired", "out", "status", "time / retired", "time/retired", "time"]
 _GAIN_COLS = ["positions_gained", "gained", "delta", "places_gained"]
+_DNF_TOKENS = {"dnf", "retired", "ret", "dsq", "nc", "dq", "dns", "dnq"}
 
 
-def _normalize_results_df(df: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, list[str]]:
+def _build_driver_name_lookup(cfg: dict[str, Any]) -> dict[str, str]:
+    """Returns lowercased name fragment → driver code (e.g. {'antonelli': 'ANT', 'kimi antonelli': 'ANT'})."""
+    out: dict[str, str] = {}
+    for code, meta in (cfg.get("prices", {}).get("drivers", {}) or {}).items():
+        full = str(meta.get("name", "")).strip()
+        if not full:
+            continue
+        out[full.lower()] = code
+        # Last name (handles "Antonelli", "Russell", "Hamilton")
+        last = full.split()[-1].lower()
+        out.setdefault(last, code)
+        # Code itself, in case the CSV already uses codes
+        out[code.lower()] = code
+    return out
+
+
+def _build_team_name_lookup(cfg: dict[str, Any]) -> dict[str, str]:
+    """Returns lowercased name → constructor id (e.g. {'mercedes': 'mercedes', 'red bull': 'red_bull'})."""
+    out: dict[str, str] = {}
+    for cid, meta in (cfg.get("prices", {}).get("constructors", {}) or {}).items():
+        out[cid.lower()] = cid
+        out[cid.lower().replace("_", " ")] = cid  # 'red_bull' → 'red bull'
+        full = str(meta.get("name", "")).strip()
+        if full:
+            out[full.lower()] = cid
+            # Strip common suffix words ("Red Bull Racing" → "red bull")
+            stripped = full.lower().replace(" racing", "").replace(" f1 team", "").strip()
+            out.setdefault(stripped, cid)
+    return out
+
+
+def _resolve_driver(raw: str, lookup: dict[str, str]) -> str | None:
+    if not raw:
+        return None
+    key = raw.strip().lower()
+    if key in lookup:
+        return lookup[key]
+    # Try last word as last name
+    last = key.split()[-1] if key.split() else key
+    if last in lookup:
+        return lookup[last]
+    return None
+
+
+def _resolve_team(raw: str, lookup: dict[str, str]) -> str | None:
+    if not raw:
+        return None
+    key = raw.strip().lower()
+    if key in lookup:
+        return lookup[key]
+    # Normalize spaces/hyphens/underscores and try again
+    norm = key.replace("-", " ").replace("_", " ").strip()
+    if norm in lookup:
+        return lookup[norm]
+    return None
+
+
+def _normalize_results_df(
+    df: pd.DataFrame, kind: str, cfg: dict[str, Any] | None = None
+) -> tuple[pd.DataFrame, list[str]]:
     """Standardize result columns to: position, driver_code, team_id, points, fastest_lap, dotd, dnf, gained.
 
-    Returns (cleaned_df, warnings).
+    When `cfg` is provided, driver names and team display names are resolved
+    against `prices.drivers` / `prices.constructors`, so a CSV with values like
+    "Antonelli" / "Mercedes" is mapped to "ANT" / "mercedes".
     """
     warnings: list[str] = []
     pos = _find_col(df, _POS_COLS)
@@ -153,15 +216,39 @@ def _normalize_results_df(df: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, li
             f"{kind}: required columns missing. Need position + driver. Got: {list(df.columns)}"
         )
 
+    driver_lookup = _build_driver_name_lookup(cfg) if cfg else {}
+    team_lookup = _build_team_name_lookup(cfg) if cfg else {}
+
     out = pd.DataFrame()
     out["position"] = pd.to_numeric(df[pos], errors="coerce").astype("Int64")
-    out["driver_code"] = df[drv].astype(str).str.strip().str.upper()
+
+    raw_drivers = df[drv].astype(str).str.strip()
+    if driver_lookup:
+        resolved = raw_drivers.apply(lambda x: _resolve_driver(x, driver_lookup))
+        unresolved = raw_drivers[resolved.isna()].tolist()
+        if unresolved:
+            warnings.append(
+                f"{kind}: could not resolve driver(s): {', '.join(sorted(set(unresolved)))} — left blank"
+            )
+        out["driver_code"] = resolved.fillna("").astype(str)
+    else:
+        out["driver_code"] = raw_drivers.str.upper()
 
     team_col = _find_col(df, _TEAM_RES_COLS)
     if team_col:
-        out["team_id"] = (
-            df[team_col].astype(str).str.strip().str.lower().str.replace(" ", "_").str.replace("-", "_")
-        )
+        raw_teams = df[team_col].astype(str).str.strip()
+        if team_lookup:
+            resolved_t = raw_teams.apply(lambda x: _resolve_team(x, team_lookup))
+            unresolved_t = raw_teams[resolved_t.isna()].tolist()
+            if unresolved_t:
+                warnings.append(
+                    f"{kind}: could not resolve team(s): {', '.join(sorted(set(unresolved_t)))} — left blank"
+                )
+            out["team_id"] = resolved_t.fillna("").astype(str)
+        else:
+            out["team_id"] = (
+                raw_teams.str.lower().str.replace(" ", "_").str.replace("-", "_")
+            )
     else:
         out["team_id"] = pd.NA
         warnings.append(f"{kind}: no team column found — team_id left blank")
@@ -181,15 +268,14 @@ def _normalize_results_df(df: pd.DataFrame, kind: str) -> tuple[pd.DataFrame, li
     dnf = _find_col(df, _DNF_COLS)
     if dnf:
         s = df[dnf].astype(str).str.lower()
-        out["dnf"] = s.isin(["true", "1", "yes", "dnf", "retired", "ret", "dsq"])
+        out["dnf"] = s.apply(lambda v: any(tok in v for tok in _DNF_TOKENS))
     else:
         out["dnf"] = False
 
     gain = _find_col(df, _GAIN_COLS)
     out["positions_gained"] = pd.to_numeric(df[gain], errors="coerce") if gain else pd.NA
 
-    out = out.dropna(subset=["driver_code"])
-    out = out[out["driver_code"] != ""]
+    out = out[out["driver_code"].astype(str).str.len() > 0]
     return out, warnings
 
 
@@ -201,16 +287,36 @@ def _save_results_csv(df: pd.DataFrame, project_root: Path, round_number: int, k
     return out_path
 
 
+def save_price_snapshot(
+    csv_text: str,
+    project_root: str | Path,
+    round_number: int,
+    kind: str,
+) -> Path | None:
+    """Archive the raw uploaded prices CSV to data/fantasy/prices/round_NN_{kind}.csv.
+
+    `kind` is "drivers" or "constructors". Returns None for empty input.
+    """
+    if not csv_text or not csv_text.strip():
+        return None
+    out_dir = Path(project_root) / "data" / "fantasy" / "prices"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"round_{int(round_number):02d}_{kind}.csv"
+    out_path.write_text(csv_text)
+    return out_path
+
+
 def ingest_race_results(
     csv_text: str,
     project_root: str | Path,
     round_number: int,
+    cfg: dict[str, Any] | None = None,
 ) -> IngestResult:
     df = _parse_csv_text(csv_text)
     if df is None or df.empty:
         return IngestResult(ok=False, errors=["Race results CSV is empty"])
     try:
-        cleaned, warnings = _normalize_results_df(df, "race")
+        cleaned, warnings = _normalize_results_df(df, "race", cfg=cfg)
     except ValueError as e:
         return IngestResult(ok=False, errors=[str(e)])
     saved = _save_results_csv(cleaned, Path(project_root), round_number, "race")
@@ -221,12 +327,13 @@ def ingest_qualifying_results(
     csv_text: str,
     project_root: str | Path,
     round_number: int,
+    cfg: dict[str, Any] | None = None,
 ) -> IngestResult:
     df = _parse_csv_text(csv_text)
     if df is None or df.empty:
         return IngestResult(ok=False, errors=["Qualifying results CSV is empty"])
     try:
-        cleaned, warnings = _normalize_results_df(df, "qualifying")
+        cleaned, warnings = _normalize_results_df(df, "qualifying", cfg=cfg)
     except ValueError as e:
         return IngestResult(ok=False, errors=[str(e)])
     saved = _save_results_csv(cleaned, Path(project_root), round_number, "qualifying")

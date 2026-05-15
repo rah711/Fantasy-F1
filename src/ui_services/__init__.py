@@ -1,4 +1,11 @@
 from src.ui_services.analytics_service import collect_health_checks, load_analytics_bundle
+from src.ui_services.calendar_service import (
+    calendar_rounds,
+    format_round_label,
+    is_cancelled,
+    next_active_round,
+    previous_active_round,
+)
 from src.ui_services.config_service import (
     ValidationResult,
     dump_config_yaml,
@@ -15,6 +22,7 @@ from src.ui_services.csv_ingest import (
     ingest_driver_prices,
     ingest_qualifying_results,
     ingest_race_results,
+    save_price_snapshot,
 )
 from src.ui_services.github_writeback import PullRequestResult, propose_config_change_via_pr, propose_files_pr
 from src.ui_services.history_service import (
@@ -58,6 +66,7 @@ __all__ = [
     "ingest_constructor_prices",
     "ingest_race_results",
     "ingest_qualifying_results",
+    "save_price_snapshot",
     "compute_team_points_for_round",
     "load_history",
     "append_lockin",
@@ -75,4 +84,9 @@ __all__ = [
     "latest_round_in_history",
     "load_competitor_history",
     "transfer_log",
+    "calendar_rounds",
+    "format_round_label",
+    "is_cancelled",
+    "next_active_round",
+    "previous_active_round",
 ]

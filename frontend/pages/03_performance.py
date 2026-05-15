@@ -13,8 +13,11 @@ if str(PROJECT_ROOT) not in sys.path:
 from frontend.components import inject_theme
 from frontend.state import get_working_config, require_auth
 from src.ui_services import (
+    calendar_rounds,
     cumulative_points_by_team,
     current_leaderboard,
+    format_round_label,
+    is_cancelled,
     load_history,
 )
 
@@ -22,8 +25,21 @@ from src.ui_services import (
 require_auth()
 inject_theme()
 
+cfg = get_working_config()
+calendar = cfg.get("season", {}).get("calendar", {})
+cancelled_rounds = {r for r in calendar_rounds(calendar) if is_cancelled(calendar, r)}
+
+
+def _drop_cancelled(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty or "round" not in df.columns or not cancelled_rounds:
+        return df
+    return df[~df["round"].astype(int).isin(cancelled_rounds)].copy()
+
+
 st.title("Performance")
 st.caption("How the three teams are doing, race by race.")
+if cancelled_rounds:
+    st.caption(f"Cancelled rounds excluded from charts: {', '.join(f'R{r}' for r in sorted(cancelled_rounds))}")
 
 
 # ---------------------------------------------------------------------------
@@ -45,7 +61,7 @@ else:
 # Cumulative + per-round chart
 # ---------------------------------------------------------------------------
 st.header("Points over time")
-cum = cumulative_points_by_team(PROJECT_ROOT)
+cum = _drop_cancelled(cumulative_points_by_team(PROJECT_ROOT))
 if cum.empty:
     st.info("Charts populate after the first round is scored.")
 else:
@@ -62,14 +78,17 @@ else:
 # Model team — per-round points table
 # ---------------------------------------------------------------------------
 st.header("Model team — per-round breakdown")
-hist = load_history(PROJECT_ROOT)
+hist = _drop_cancelled(load_history(PROJECT_ROOT))
 if hist.empty:
     st.info("No rounds locked in yet.")
 else:
     show = hist[["round", "drivers", "constructors", "drs_boost", "actual_points", "notes"]].copy()
+    show = show.sort_values("round")
+    show["Race"] = show["round"].astype(int).apply(lambda r: format_round_label(calendar, r, short=True))
     show["actual_points"] = pd.to_numeric(show["actual_points"], errors="coerce")
-    show.columns = ["Round", "Drivers", "Constructors", "DRS Boost", "Points", "Notes"]
-    st.dataframe(show.sort_values("Round"), use_container_width=True, hide_index=True)
+    show = show[["Race", "drivers", "constructors", "drs_boost", "actual_points", "notes"]]
+    show.columns = ["Race", "Drivers", "Constructors", "DRS Boost", "Points", "Notes"]
+    st.dataframe(show, use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------------------

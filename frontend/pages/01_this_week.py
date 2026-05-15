@@ -21,19 +21,25 @@ from frontend.state import (
 from src.ui_services import (
     append_lockin,
     c_to_f,
+    calendar_rounds,
     compute_team_points_for_round,
     dump_config_yaml,
+    format_round_label,
     generate_config_diff,
     history_path,
     ingest_constructor_prices,
     ingest_driver_prices,
     ingest_qualifying_results,
     ingest_race_results,
+    is_cancelled,
     load_config_file,
+    next_active_round,
     parse_weather_description,
+    previous_active_round,
     propose_files_pr,
     recommend_round,
     recommend_transfers,
+    save_price_snapshot,
     update_current_team,
     update_weather_override,
 )
@@ -64,25 +70,27 @@ calendar = season.get("calendar", {})
 
 st.header("1. Race context")
 
-ctx_a, ctx_b = st.columns([1, 3])
-with ctx_a:
-    round_default = int(weather.get("next_race_round", 1))
-    round_number = st.number_input(
-        "Next round",
-        min_value=1,
-        max_value=int(season.get("total_rounds", 24)),
-        value=round_default,
-        step=1,
-    )
-with ctx_b:
-    event = calendar.get(int(round_number), {}) or calendar.get(round_number, {})
-    if event:
-        st.markdown("&nbsp;")
-        st.markdown(
-            f"### R{int(round_number)} — {event.get('name', '')}  "
-            f"<span style='color:#999;font-size:0.7em;'>{event.get('country', '')} · {event.get('dates', '')}</span>",
-            unsafe_allow_html=True,
-        )
+all_rounds = calendar_rounds(calendar, include_cancelled=True)
+round_default_raw = int(weather.get("next_race_round", 1))
+round_default = next_active_round(calendar, round_default_raw)
+
+if not all_rounds:
+    all_rounds = list(range(1, int(season.get("total_rounds", 24)) + 1))
+
+try:
+    default_index = all_rounds.index(round_default)
+except ValueError:
+    default_index = 0
+
+round_number = st.selectbox(
+    "Next round",
+    options=all_rounds,
+    index=default_index,
+    format_func=lambda r: format_round_label(calendar, r),
+    help="Pick the round you're preparing for. Cancelled rounds stay listed but are flagged.",
+)
+if is_cancelled(calendar, int(round_number)):
+    st.warning(f"R{int(round_number)} is marked **cancelled** in config.yaml — recommendations may not be meaningful.")
 
 st.markdown("##### Weather")
 forecast_text = st.text_area(
@@ -139,22 +147,78 @@ st.caption("Drop in this week's CSVs. Each tab is independent — upload only wh
 tabs = st.tabs(["Driver prices", "Constructor prices", "Last race results", "Last qualifying"])
 
 
-def _csv_input(label: str, key: str) -> str:
+def _csv_input(label: str, key: str, placeholder: str) -> str:
     """Return the CSV text from either a file upload or pasted area."""
     upload = st.file_uploader(f"Upload {label} CSV", type=["csv"], key=f"{key}_file")
-    pasted = st.text_area(f"…or paste {label} CSV", key=f"{key}_paste", height=140, placeholder="code,price\nVER,28.1\nNOR,26.8\n…")
+    pasted = st.text_area(
+        f"…or paste {label} CSV", key=f"{key}_paste", height=160, placeholder=placeholder,
+    )
     if upload is not None:
         return upload.getvalue().decode("utf-8")
     return pasted
 
 
+def _round_picker(label: str, key: str, default_round: int) -> int:
+    """Round dropdown bound to the season calendar (cancelled rounds stay listed)."""
+    try:
+        idx = all_rounds.index(default_round)
+    except ValueError:
+        idx = 0
+    return st.selectbox(
+        label,
+        options=all_rounds,
+        index=idx,
+        format_func=lambda r: format_round_label(calendar, r),
+        key=key,
+    )
+
+
+_DRIVER_PRICE_EXAMPLE = (
+    "Driver,Price\n"
+    "Verstappen,28.1\n"
+    "Russell,28.0\n"
+    "Norris,26.8\n"
+    "(Names or codes both work — VER/RUS/NOR also accepted.)"
+)
+_CTOR_PRICE_EXAMPLE = (
+    "Constructor,Price\n"
+    "Mercedes,29.9\n"
+    "Red Bull Racing,28.8\n"
+    "McLaren,28.5"
+)
+_RACE_EXAMPLE = (
+    "POS,NO,DRIVER,TEAM,LAPS,TIME / RETIRED,PTS\n"
+    "1,12,Antonelli,Mercedes,56,1:33:15.607,25\n"
+    "2,63,Russell,Mercedes,56,+5.515s,18\n"
+    "3,44,Hamilton,Ferrari,56,+25.267s,15"
+)
+_QUALI_EXAMPLE = (
+    "POS,NO,DRIVER,TEAM,Q1,Q2,Q3\n"
+    "1,12,Antonelli,Mercedes,1:18.234,1:17.812,1:17.345\n"
+    "2,63,Russell,Mercedes,1:18.301,1:17.890,1:17.401\n"
+    "3,44,Hamilton,Ferrari,1:18.412,1:18.001,1:17.502"
+)
+
+
+# Defaults: prices apply ahead of the picked next round; results are from the
+# previous active round (cancelled rounds skipped).
+_default_prices_round = int(round_number)
+_default_results_round = previous_active_round(calendar, int(round_number))
+
+
 with tabs[0]:
-    text = _csv_input("driver prices", "drv_prices")
+    drv_round = _round_picker(
+        "Prices apply ahead of round", "drv_round", _default_prices_round,
+    )
+    text = _csv_input("driver prices", "drv_prices", _DRIVER_PRICE_EXAMPLE)
     if st.button("Apply driver prices", key="apply_drv"):
         res = ingest_driver_prices(get_working_config(), text)
         if res.ok:
             set_working_config(res.updated_config)
-            st.success(f"Updated prices for {res.rows} drivers.")
+            snap = save_price_snapshot(text, PROJECT_ROOT, int(drv_round), "drivers")
+            st.success(f"Updated prices for {res.rows} drivers (ahead of R{int(drv_round)}).")
+            if snap:
+                st.caption(f"Snapshot archived: {snap}")
             for w in res.warnings:
                 st.warning(w)
         else:
@@ -162,12 +226,18 @@ with tabs[0]:
                 st.error(e)
 
 with tabs[1]:
-    text = _csv_input("constructor prices", "ctor_prices")
+    ctor_round = _round_picker(
+        "Prices apply ahead of round", "ctor_round", _default_prices_round,
+    )
+    text = _csv_input("constructor prices", "ctor_prices", _CTOR_PRICE_EXAMPLE)
     if st.button("Apply constructor prices", key="apply_ctor"):
         res = ingest_constructor_prices(get_working_config(), text)
         if res.ok:
             set_working_config(res.updated_config)
-            st.success(f"Updated prices for {res.rows} constructors.")
+            snap = save_price_snapshot(text, PROJECT_ROOT, int(ctor_round), "constructors")
+            st.success(f"Updated prices for {res.rows} constructors (ahead of R{int(ctor_round)}).")
+            if snap:
+                st.caption(f"Snapshot archived: {snap}")
             for w in res.warnings:
                 st.warning(w)
         else:
@@ -175,13 +245,14 @@ with tabs[1]:
                 st.error(e)
 
 with tabs[2]:
-    text = _csv_input("race results (round just finished)", "race_res")
-    last_round = max(1, int(round_number) - 1)
-    st.caption(f"These are saved as the results for **R{last_round}** (the round before the upcoming one).")
+    race_round = _round_picker(
+        "Results are from round", "race_round", _default_results_round,
+    )
+    text = _csv_input("race results", "race_res", _RACE_EXAMPLE)
     if st.button("Save race results", key="save_race"):
-        res = ingest_race_results(text, PROJECT_ROOT, last_round)
+        res = ingest_race_results(text, PROJECT_ROOT, int(race_round), cfg=get_working_config())
         if res.ok:
-            st.success(f"Saved {res.rows} drivers' race results to {res.saved_path}")
+            st.success(f"Saved {res.rows} drivers' race results for R{int(race_round)} → {res.saved_path}")
             for w in res.warnings:
                 st.warning(w)
             if res.parsed is not None and not res.parsed.empty:
@@ -191,13 +262,14 @@ with tabs[2]:
                 st.error(e)
 
 with tabs[3]:
-    text = _csv_input("qualifying results", "quali_res")
-    last_round = max(1, int(round_number) - 1)
-    st.caption(f"Saved as qualifying for **R{last_round}**.")
+    quali_round = _round_picker(
+        "Results are from round", "quali_round", _default_results_round,
+    )
+    text = _csv_input("qualifying results", "quali_res", _QUALI_EXAMPLE)
     if st.button("Save qualifying results", key="save_quali"):
-        res = ingest_qualifying_results(text, PROJECT_ROOT, last_round)
+        res = ingest_qualifying_results(text, PROJECT_ROOT, int(quali_round), cfg=get_working_config())
         if res.ok:
-            st.success(f"Saved {res.rows} drivers' qualifying results to {res.saved_path}")
+            st.success(f"Saved {res.rows} drivers' qualifying results for R{int(quali_round)} → {res.saved_path}")
             for w in res.warnings:
                 st.warning(w)
             if res.parsed is not None and not res.parsed.empty:

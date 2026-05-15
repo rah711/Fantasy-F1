@@ -11,28 +11,50 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from frontend.components import inject_theme
-from frontend.state import require_auth
-from src.ui_services import driver_tenure, load_history, transfer_log
+from frontend.state import get_working_config, require_auth
+from src.ui_services import (
+    calendar_rounds,
+    driver_tenure,
+    format_round_label,
+    is_cancelled,
+    load_history,
+    transfer_log,
+)
 
 
 require_auth()
 inject_theme()
 
+cfg = get_working_config()
+calendar = cfg.get("season", {}).get("calendar", {})
+cancelled_rounds = {r for r in calendar_rounds(calendar) if is_cancelled(calendar, r)}
+
+
+def _drop_cancelled(df: pd.DataFrame) -> pd.DataFrame:
+    if df.empty or "round" not in df.columns or not cancelled_rounds:
+        return df
+    return df[~df["round"].astype(int).isin(cancelled_rounds)].copy()
+
+
 st.title("History")
 st.caption("Every transfer, every reasoning note, every chip burned.")
+if cancelled_rounds:
+    st.caption(f"Cancelled rounds excluded: {', '.join(f'R{r}' for r in sorted(cancelled_rounds))}")
 
 
 # ---------------------------------------------------------------------------
 # Transfer log
 # ---------------------------------------------------------------------------
 st.header("Transfer log")
-log = transfer_log(PROJECT_ROOT)
+log = _drop_cancelled(transfer_log(PROJECT_ROOT))
 if log.empty:
     st.info("No rounds locked in yet — transfer log is empty.")
 else:
-    show = log.copy()
-    show.columns = ["Round", "In (drivers)", "Out (drivers)", "In (constructors)", "Out (constructors)", "DRS Boost", "Chips used", "Points scored", "Notes"]
-    st.dataframe(show.sort_values("Round", ascending=False), use_container_width=True, hide_index=True)
+    show = log.copy().sort_values("round", ascending=False)
+    show["Race"] = show["round"].astype(int).apply(lambda r: format_round_label(calendar, r, short=True))
+    show = show[["Race", "drivers_in", "drivers_out", "constructors_in", "constructors_out", "drs_boost", "chips_used", "actual_points", "notes"]]
+    show.columns = ["Race", "In (drivers)", "Out (drivers)", "In (constructors)", "Out (constructors)", "DRS Boost", "Chips used", "Points scored", "Notes"]
+    st.dataframe(show, use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------------------
@@ -53,12 +75,13 @@ else:
 # Per-round notes
 # ---------------------------------------------------------------------------
 st.header("Per-round reasoning")
-hist = load_history(PROJECT_ROOT)
+hist = _drop_cancelled(load_history(PROJECT_ROOT))
 if hist.empty:
     st.info("Lock in some rounds to start building a season story.")
 else:
     for _, r in hist.sort_values("round", ascending=False).iterrows():
         notes = str(r.get("notes", "") or "").strip()
+        race_label = format_round_label(calendar, int(r["round"]), short=True)
         with st.container():
             cols = st.columns([1, 6])
             with cols[0]:
@@ -70,6 +93,7 @@ else:
                     unsafe_allow_html=True,
                 )
             with cols[1]:
+                st.markdown(f"**{race_label}**")
                 st.markdown(f"**Drivers:** {r['drivers']}  ·  **Constructors:** {r['constructors']}  ·  **DRS:** {r['drs_boost']}")
                 if notes:
                     st.markdown(f"_{notes}_")

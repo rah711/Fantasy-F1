@@ -15,8 +15,10 @@ from frontend.components import F1_RED, inject_theme, team_color
 from frontend.state import get_working_config, is_owner
 from src.ui_services import (
     THREE_TEAM_LABELS,
+    calendar_rounds,
     cumulative_points_by_team,
     current_leaderboard,
+    is_cancelled,
     latest_round_in_history,
 )
 
@@ -110,7 +112,13 @@ if latest_round:
 st.markdown("---")
 st.header("Points over time")
 
+_cfg_for_calendar = get_working_config()
+_calendar = _cfg_for_calendar.get("season", {}).get("calendar", {})
+_cancelled = {r for r in calendar_rounds(_calendar) if is_cancelled(_calendar, r)}
+
 cum = cumulative_points_by_team(PROJECT_ROOT)
+if not cum.empty and _cancelled:
+    cum = cum[~cum["round"].astype(int).isin(_cancelled)].copy()
 if cum.empty:
     st.info("No scored rounds yet — this chart fills in as the season progresses.")
 else:
