@@ -5,19 +5,16 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import F1_RED, inject_theme, role_pill, team_color
+from frontend.components import inject_theme
 from frontend.state import (
-    auth_role,
     get_working_config,
     github_settings_from_secrets,
     is_owner,
-    logout_button,
     require_auth,
     set_working_config,
 )
@@ -27,13 +24,14 @@ from src.ui_services import (
     compute_team_points_for_round,
     dump_config_yaml,
     generate_config_diff,
+    history_path,
     ingest_constructor_prices,
     ingest_driver_prices,
     ingest_qualifying_results,
     ingest_race_results,
     load_config_file,
     parse_weather_description,
-    propose_config_change_via_pr,
+    propose_files_pr,
     recommend_round,
     recommend_transfers,
     update_current_team,
@@ -41,23 +39,15 @@ from src.ui_services import (
 )
 
 
-st.set_page_config(page_title="This Week — Fantasy F1", layout="wide")
 require_auth()
 
 if not is_owner():
     inject_theme()
     st.title("This Week")
     st.warning("This page is for the team principal only. Switch to **Performance** in the sidebar to follow the season.")
-    logout_button()
     st.stop()
 
 inject_theme()
-
-col_role, col_logout = st.columns([6, 1])
-with col_role:
-    role_pill(auth_role() or "")
-with col_logout:
-    logout_button()
 
 st.title("This Week")
 st.caption("Upload latest data → see recommendation → lock in.")
@@ -468,7 +458,7 @@ else:
         ct["chips_remaining"] = rem_now
         set_working_config(new_cfg)
 
-        history_path = append_lockin(
+        hist_csv_path = append_lockin(
             project_root=PROJECT_ROOT,
             round_number=int(round_number),
             drivers=locked_drivers,
@@ -480,21 +470,24 @@ else:
             banked_transfers_after=int(banked_after),
             notes=lockin_notes,
         )
-        st.success(f"Locked in. History updated at {history_path}.")
+        st.success(f"Locked in. History updated at {hist_csv_path}.")
 
-        # Auto-PR if GitHub creds are configured
+        # Auto-PR (config.yaml + history.csv) if GitHub creds are configured
         gh = github_settings_from_secrets()
         if gh.get("token") and gh["token"] != "ghp_xxx":
             base_cfg = load_config_file()
             updated_yaml = dump_config_yaml(new_cfg)
             diff = generate_config_diff(base_cfg, new_cfg)
+            files_to_pr: dict[str, str] = {"config.yaml": updated_yaml}
+            if hist_csv_path.exists():
+                files_to_pr["data/fantasy/history.csv"] = hist_csv_path.read_text()
             with st.spinner("Opening PR with config + history update…"):
-                pr = propose_config_change_via_pr(
-                    updated_cfg_yaml=updated_yaml,
+                pr = propose_files_pr(
+                    files=files_to_pr,
                     title=f"Lock in R{int(round_number)} team",
                     body=f"Auto-PR from This Week wizard.\n\n```diff\n{diff[:3000]}\n```",
+                    branch_prefix="lockin",
                     settings=gh,
-                    dry_run=False,
                 )
             if pr.ok:
                 st.success(f"PR opened: {pr.pr_url}")

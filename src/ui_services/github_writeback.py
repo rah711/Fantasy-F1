@@ -176,3 +176,53 @@ def propose_config_change_via_pr(
         return PullRequestResult(ok=True, branch_name=branch_name, pr_url=pr_url, message="PR created")
     except Exception as exc:
         return PullRequestResult(ok=False, branch_name=branch_name, pr_url=None, message=str(exc))
+
+
+def propose_files_pr(
+    files: dict[str, str],
+    title: str,
+    body: str,
+    branch_prefix: str = "ui-data-update",
+    settings: dict[str, str] | None = None,
+    dry_run: bool = False,
+) -> PullRequestResult:
+    """Commit a set of repo-relative paths → text content on a new branch and open a PR.
+
+    Use for any file the UI writes that should persist back to the repo (history.csv,
+    competitors.csv, race-result CSVs, etc.).
+    """
+    gh = _resolve_github_settings(settings)
+    missing = [k for k in ("token", "owner", "repo") if not gh.get(k)]
+    if missing:
+        return PullRequestResult(
+            ok=False, branch_name="", pr_url=None,
+            message=f"Missing GitHub settings: {', '.join(missing)}",
+        )
+    if not files:
+        return PullRequestResult(ok=False, branch_name="", pr_url=None, message="No files to commit")
+
+    branch_name = build_branch_name(prefix=branch_prefix)
+    if dry_run:
+        return PullRequestResult(
+            ok=True, branch_name=branch_name, pr_url=None,
+            message=f"Dry run: would PR {len(files)} file(s) on branch {branch_name}",
+        )
+
+    client = GitHubWritebackClient(
+        token=gh["token"], owner=gh["owner"], repo=gh["repo"],
+        base_branch=gh.get("base_branch", "main"),
+    )
+    try:
+        client.create_branch(new_branch=branch_name)
+        for path, content in files.items():
+            client.put_file(
+                path=path, content_text=content,
+                commit_message=f"data: {title} — {path}", branch=branch_name,
+            )
+        pr_url = client.create_pull_request(
+            title=title, body=body, head_branch=branch_name,
+            base_branch=gh.get("base_branch", "main"),
+        )
+        return PullRequestResult(ok=True, branch_name=branch_name, pr_url=pr_url, message="PR created")
+    except Exception as exc:
+        return PullRequestResult(ok=False, branch_name=branch_name, pr_url=None, message=str(exc))

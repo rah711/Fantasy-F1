@@ -10,13 +10,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import inject_theme, role_pill
+from frontend.components import inject_theme
 from frontend.state import (
-    auth_role,
     get_working_config,
     github_settings_from_secrets,
     is_owner,
-    logout_button,
     require_auth,
 )
 from src.ui_services import (
@@ -26,28 +24,21 @@ from src.ui_services import (
     history_path,
     load_competitor_history,
     load_history,
-    propose_config_change_via_pr,
+    propose_files_pr,
     update_actual_points,
 )
+from src.ui_services.season_service import competitors_path
 
 
-st.set_page_config(page_title="Score Round — Fantasy F1", layout="wide")
 require_auth()
 
 if not is_owner():
     inject_theme()
     st.title("Score Round")
     st.warning("This page is for the team principal only. Switch to **Performance** in the sidebar to follow the season.")
-    logout_button()
     st.stop()
 
 inject_theme()
-
-col_role, col_logout = st.columns([6, 1])
-with col_role:
-    role_pill(auth_role() or "")
-with col_logout:
-    logout_button()
 
 st.title("Score round")
 st.caption("After each race: enter what each of the three teams actually scored. Powers the leaderboard + charts.")
@@ -176,7 +167,25 @@ if st.button("Save scores for this round", type="primary", key="save_scores"):
     # 3. Auto-PR if creds configured (commits both history.csv + competitors.csv)
     gh = github_settings_from_secrets()
     if gh.get("token") and gh["token"] != "ghp_xxx":
-        st.info("GitHub auto-PR for data files isn't wired yet — coming in phase 5. For now, commit `data/fantasy/*.csv` manually.")
+        files_to_pr: dict[str, str] = {}
+        h_path = history_path(PROJECT_ROOT)
+        if h_path.exists():
+            files_to_pr["data/fantasy/history.csv"] = h_path.read_text()
+        c_path = competitors_path(PROJECT_ROOT)
+        if c_path.exists():
+            files_to_pr["data/fantasy/competitors.csv"] = c_path.read_text()
+        with st.spinner("Opening PR with score updates…"):
+            pr = propose_files_pr(
+                files=files_to_pr,
+                title=f"Score R{int(round_number)} (human {human_pts:.0f} · claude {claude_pts:.0f} · model {model_pts:.0f})",
+                body="Auto-PR from Score Round page.",
+                branch_prefix="score-round",
+                settings=gh,
+            )
+        if pr.ok:
+            st.success(f"PR opened: {pr.pr_url}")
+        else:
+            st.warning(f"PR write-back failed: {pr.message}")
     else:
         st.caption("GitHub creds not configured — files saved locally. Add `GITHUB_TOKEN` to enable auto-PR.")
 

@@ -10,20 +10,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import inject_theme, role_pill
-from frontend.state import auth_role, logout_button, require_auth
+from frontend.components import inject_theme
+from frontend.state import require_auth
 from src.ui_services import driver_tenure, load_history, transfer_log
 
 
-st.set_page_config(page_title="History — Fantasy F1", layout="wide")
 require_auth()
 inject_theme()
-
-col_role, col_logout = st.columns([6, 1])
-with col_role:
-    role_pill(auth_role() or "")
-with col_logout:
-    logout_button()
 
 st.title("History")
 st.caption("Every transfer, every reasoning note, every chip burned.")

@@ -10,26 +10,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import F1_RED, inject_theme, role_pill, team_color
-from frontend.state import auth_role, get_working_config, logout_button, require_auth
+from frontend.components import inject_theme
+from frontend.state import get_working_config, require_auth
 from src.ui_services import (
-    THREE_TEAM_LABELS,
     cumulative_points_by_team,
     current_leaderboard,
-    latest_round_in_history,
     load_history,
 )
 
 
-st.set_page_config(page_title="Performance — Fantasy F1", layout="wide")
 require_auth()
 inject_theme()
-
-col_role, col_logout = st.columns([6, 1])
-with col_role:
-    role_pill(auth_role() or "")
-with col_logout:
-    logout_button()
 
 st.title("Performance")
 st.caption("How the three teams are doing, race by race.")

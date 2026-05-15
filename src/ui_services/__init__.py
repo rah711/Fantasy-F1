@@ -16,7 +16,7 @@ from src.ui_services.csv_ingest import (
     ingest_qualifying_results,
     ingest_race_results,
 )
-from src.ui_services.github_writeback import PullRequestResult, propose_config_change_via_pr
+from src.ui_services.github_writeback import PullRequestResult, propose_config_change_via_pr, propose_files_pr
 from src.ui_services.history_service import (
     HISTORY_COLUMNS,
     append_lockin,
@@ -53,6 +53,7 @@ __all__ = [
     "collect_health_checks",
     "load_analytics_bundle",
     "propose_config_change_via_pr",
+    "propose_files_pr",
     "ingest_driver_prices",
     "ingest_constructor_prices",
     "ingest_race_results",
