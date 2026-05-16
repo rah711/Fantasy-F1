@@ -1,3 +1,9 @@
+from frontend.components.charts import (
+    TEAM_VIZ_COLORS,
+    cumulative_chart,
+    delta_vs_human_chart,
+    per_round_chart,
+)
 from frontend.components.common import (
     file_download_button,
     readonly_notice,
@@ -29,9 +35,13 @@ __all__ = [
     "team_color",
     "driver_palette",
     "TEAM_COLORS",
+    "TEAM_VIZ_COLORS",
     "F1_RED",
     "F1_BLACK",
     "F1_DARK_GREY",
     "F1_LIGHT_GREY",
     "F1_OFF_WHITE",
+    "cumulative_chart",
+    "per_round_chart",
+    "delta_vs_human_chart",
 ]

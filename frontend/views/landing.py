@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import F1_RED, inject_theme, team_color
+from frontend.components import F1_RED, cumulative_chart, inject_theme, team_color
 from frontend.state import get_working_config, is_owner
 from src.ui_services import (
     THREE_TEAM_LABELS,
@@ -122,10 +122,7 @@ if not cum.empty and _cancelled:
 if cum.empty:
     st.info("No scored rounds yet — this chart fills in as the season progresses.")
 else:
-    pivot = cum.pivot_table(
-        index="round", columns="team_name", values="cumulative_points", aggfunc="last"
-    )
-    st.line_chart(pivot, height=320)
+    st.altair_chart(cumulative_chart(cum, _calendar), use_container_width=True)
 
 
 # ---------------------------------------------------------------------------
