@@ -16,12 +16,14 @@ from src.ui_services.config_service import (
     validate_and_apply_price_csv,
 )
 from src.ui_services.csv_ingest import (
+    BreakdownRow,
     IngestResult,
     compute_team_points_for_round,
     ingest_constructor_prices,
     ingest_driver_prices,
     ingest_qualifying_results,
     ingest_race_results,
+    parse_score_breakdown,
     save_price_snapshot,
 )
 from src.ui_services.github_writeback import PullRequestResult, propose_config_change_via_pr, propose_files_pr
@@ -35,11 +37,13 @@ from src.ui_services.history_service import (
 from src.ui_services.recommendation_service import recommend_round, recommend_transfers
 from src.ui_services.season_service import (
     THREE_TEAM_LABELS,
+    append_breakdown,
     append_competitor_score,
     cumulative_points_by_team,
     current_leaderboard,
     driver_tenure,
     latest_round_in_history,
+    load_breakdowns,
     load_competitor_history,
     transfer_log,
 )
@@ -67,6 +71,8 @@ __all__ = [
     "ingest_race_results",
     "ingest_qualifying_results",
     "save_price_snapshot",
+    "parse_score_breakdown",
+    "BreakdownRow",
     "compute_team_points_for_round",
     "load_history",
     "append_lockin",
@@ -77,11 +83,13 @@ __all__ = [
     "c_to_f",
     "f_to_c",
     "THREE_TEAM_LABELS",
+    "append_breakdown",
     "append_competitor_score",
     "cumulative_points_by_team",
     "current_leaderboard",
     "driver_tenure",
     "latest_round_in_history",
+    "load_breakdowns",
     "load_competitor_history",
     "transfer_log",
     "calendar_rounds",

@@ -28,6 +28,56 @@ def competitors_path(project_root: str | Path) -> Path:
     return Path(project_root) / "data" / "fantasy" / "competitors.csv"
 
 
+def breakdowns_path(project_root: str | Path) -> Path:
+    return Path(project_root) / "data" / "fantasy" / "breakdowns.csv"
+
+
+_BREAKDOWN_COLS = ["round", "team_key", "asset", "name", "kind", "points"]
+
+
+def load_breakdowns(project_root: str | Path) -> pd.DataFrame:
+    p = breakdowns_path(project_root)
+    if not p.exists():
+        return pd.DataFrame(columns=_BREAKDOWN_COLS)
+    return pd.read_csv(p)
+
+
+def append_breakdown(
+    project_root: str | Path,
+    round_number: int,
+    team_key: str,
+    rows: list[dict[str, Any]],
+) -> Path:
+    """Insert/replace breakdown rows for one (round, team_key)."""
+    p = breakdowns_path(project_root)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    df = load_breakdowns(project_root)
+
+    if not df.empty:
+        mask = (df["round"].astype(int) == int(round_number)) & (
+            df["team_key"].astype(str) == team_key
+        )
+        df = df[~mask]
+
+    if rows:
+        new_df = pd.DataFrame([
+            {
+                "round": int(round_number),
+                "team_key": team_key,
+                "asset": r["asset"],
+                "name": r["name"],
+                "kind": r["kind"],
+                "points": round(float(r["points"]), 2),
+            }
+            for r in rows
+        ])
+        df = pd.concat([df, new_df], ignore_index=True)
+
+    df = df.sort_values(["round", "team_key", "kind", "asset"]).reset_index(drop=True)
+    df.to_csv(p, index=False)
+    return p
+
+
 def history_path(project_root: str | Path) -> Path:
     return Path(project_root) / "data" / "fantasy" / "history.csv"
 

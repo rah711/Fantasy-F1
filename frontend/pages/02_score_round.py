@@ -19,18 +19,20 @@ from frontend.state import (
 )
 from src.ui_services import (
     THREE_TEAM_LABELS,
+    append_breakdown,
     append_competitor_score,
     calendar_rounds,
-    compute_team_points_for_round,
     format_round_label,
     history_path,
     is_cancelled,
     load_competitor_history,
     load_history,
+    parse_score_breakdown,
     previous_active_round,
     propose_files_pr,
     update_actual_points,
 )
+from src.ui_services.season_service import breakdowns_path
 from src.ui_services.season_service import competitors_path
 
 
@@ -92,72 +94,87 @@ existing_claude = comp_round[comp_round["team_key"] == "claude_chat"]["points"].
 
 
 # ---------------------------------------------------------------------------
-# Auto-compute model team's points if race results exist
-# ---------------------------------------------------------------------------
-auto_model_pts: float | None = None
-if not hist_row.empty:
-    drivers = str(hist_row.iloc[0].get("drivers", "")).split(",")
-    drivers = [d.strip() for d in drivers if d.strip()]
-    constructors = str(hist_row.iloc[0].get("constructors", "")).split(",")
-    constructors = [c.strip() for c in constructors if c.strip()]
-    drs = str(hist_row.iloc[0].get("drs_boost", "") or "")
-    scored = compute_team_points_for_round(
-        project_root=PROJECT_ROOT,
-        round_number=int(round_number),
-        drivers=drivers,
-        constructors=constructors,
-        drs_boost=drs,
-    )
-    if scored:
-        auto_model_pts = float(scored.get("total_driver_points", 0.0))
-
-
-# ---------------------------------------------------------------------------
 # Score entry form
 # ---------------------------------------------------------------------------
 st.header("2. Enter scores")
+st.caption(
+    "Enter the **official total** the F1 Fantasy site shows for each team. "
+    "Optionally, paste the per-driver breakdown to capture a richer record for the visitor view."
+)
 
-if hist_row.empty:
-    st.warning(
-        f"No locked-in lineup found for R{int(round_number)} in `data/fantasy/history.csv`. "
-        "Lock in the round via **This Week** first, then come back here."
+
+def _team_score_block(
+    team_key: str,
+    label: str,
+    placeholder_caption: str,
+    existing_total: float | None,
+    breakdown_placeholder: str,
+) -> tuple[float, list, list[str]]:
+    """Render one team's score input + optional breakdown paste. Returns (total, rows, warnings)."""
+    st.markdown(f"**{label}**")
+    st.caption(placeholder_caption)
+    breakdown_text = st.text_area(
+        "Paste per-driver breakdown (optional)",
+        key=f"breakdown_{team_key}",
+        height=170,
+        placeholder=breakdown_placeholder,
     )
+    rows, parsed_total, parse_warnings = parse_score_breakdown(breakdown_text, cfg)
+    if rows:
+        st.caption(f"Parsed sum from breakdown: **{parsed_total:.1f}** ({len(rows)} entries)")
+    default_total = parsed_total if rows else (
+        existing_total if existing_total is not None else 0.0
+    )
+    total = st.number_input(
+        f"{label} — total points",
+        min_value=-200.0, max_value=2000.0, value=float(default_total),
+        step=0.5, key=f"score_{team_key}",
+        help="Defaults to the parsed sum if you pasted a breakdown; otherwise enter manually.",
+    )
+    return total, rows, parse_warnings
+
+
+_HUMAN_PLACEHOLDER = (
+    "Russell: 54\n"
+    "Gasly: 14\n"
+    "Lawson: 10\n"
+    "Sainz: 4\n"
+    "Bearman: -14\n"
+    "Ferrari: 75\n"
+    "Racing Bulls: 18"
+)
+_CLAUDE_PLACEHOLDER = _HUMAN_PLACEHOLDER  # same format
+_MODEL_PLACEHOLDER = _HUMAN_PLACEHOLDER
 
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.markdown(f"**{THREE_TEAM_LABELS['human']}**")
-    st.caption("Your scores from the official Fantasy F1 site.")
-    human_pts = st.number_input(
-        "Human team points", min_value=-200.0, max_value=1000.0,
-        value=float(existing_human) if existing_human is not None else 0.0,
-        step=0.5, key="score_human",
+    human_pts, human_breakdown, human_warns = _team_score_block(
+        "human", THREE_TEAM_LABELS["human"],
+        "Your scores from the official Fantasy F1 site.",
+        existing_human, _HUMAN_PLACEHOLDER,
     )
 with c2:
-    st.markdown(f"**{THREE_TEAM_LABELS['claude_chat']}**")
-    st.caption("Pure-AI Claude chat team's scores.")
-    claude_pts = st.number_input(
-        "Claude chat team points", min_value=-200.0, max_value=1000.0,
-        value=float(existing_claude) if existing_claude is not None else 0.0,
-        step=0.5, key="score_claude",
+    claude_pts, claude_breakdown, claude_warns = _team_score_block(
+        "claude_chat", THREE_TEAM_LABELS["claude_chat"],
+        "Pure-AI Claude chat team's scores.",
+        existing_claude, _CLAUDE_PLACEHOLDER,
     )
 with c3:
-    st.markdown(f"**{THREE_TEAM_LABELS['model']}**")
-    if auto_model_pts is not None:
-        st.caption(f"Auto-computed from race results: **{auto_model_pts:.1f}** (you can override)")
-    elif not hist_row.empty:
-        st.caption("Upload race results in **This Week** to auto-compute, or enter manually.")
-    default_model = existing_model_pts if existing_model_pts is not None else (auto_model_pts or 0.0)
-    model_pts = st.number_input(
-        "Model team points", min_value=-200.0, max_value=1000.0,
-        value=float(default_model), step=0.5, key="score_model",
+    model_pts, model_breakdown, model_warns = _team_score_block(
+        "model", THREE_TEAM_LABELS["model"],
+        "From the official site — what the model's lineup actually scored.",
+        existing_model_pts, _MODEL_PLACEHOLDER,
     )
+
+for w in human_warns + claude_warns + model_warns:
+    st.warning(w)
 
 st.write("")
 
 if st.button("Save scores for this round", type="primary", key="save_scores"):
     paths_changed: list[str] = []
 
-    # 1. Update model team's actual_points in history.csv (only if a row exists)
+    # 1. Update model team's actual_points in history.csv if a row exists
     if not hist_row.empty:
         p = update_actual_points(PROJECT_ROOT, int(round_number), float(model_pts))
         if p:
@@ -166,6 +183,23 @@ if st.button("Save scores for this round", type="primary", key="save_scores"):
     # 2. Append/replace competitor rows
     p_human = append_competitor_score(PROJECT_ROOT, int(round_number), "human", float(human_pts))
     p_claude = append_competitor_score(PROJECT_ROOT, int(round_number), "claude_chat", float(claude_pts))
+    if hist_row.empty:
+        # No lock-in for this round — also store the model team's score in competitors.csv
+        # so it shows up in the leaderboard / charts despite the missing history row.
+        append_competitor_score(PROJECT_ROOT, int(round_number), "model", float(model_pts))
+
+    # 3. Save breakdowns (if any team's breakdown was pasted)
+    for team_key, rows in (
+        ("human", human_breakdown),
+        ("claude_chat", claude_breakdown),
+        ("model", model_breakdown),
+    ):
+        if rows:
+            bp = append_breakdown(
+                PROJECT_ROOT, int(round_number), team_key,
+                [{"asset": r.asset, "name": r.name, "kind": r.kind, "points": r.points} for r in rows],
+            )
+            paths_changed.append(str(bp))
     paths_changed += [str(p_human), str(p_claude)]
 
     st.success(f"Saved scores for R{int(round_number)}: human {human_pts:.1f} · claude {claude_pts:.1f} · model {model_pts:.1f}")
@@ -182,6 +216,9 @@ if st.button("Save scores for this round", type="primary", key="save_scores"):
         c_path = competitors_path(PROJECT_ROOT)
         if c_path.exists():
             files_to_pr["data/fantasy/competitors.csv"] = c_path.read_text()
+        b_path = breakdowns_path(PROJECT_ROOT)
+        if b_path.exists():
+            files_to_pr["data/fantasy/breakdowns.csv"] = b_path.read_text()
         with st.spinner("Opening PR with score updates…"):
             pr = propose_files_pr(
                 files=files_to_pr,

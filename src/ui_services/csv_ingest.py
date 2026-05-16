@@ -7,6 +7,7 @@ via Perplexity / Comet) but strict about types after parsing.
 from __future__ import annotations
 
 import copy
+import re
 from dataclasses import dataclass, field
 from io import StringIO
 from pathlib import Path
@@ -186,17 +187,92 @@ def _resolve_driver(raw: str, lookup: dict[str, str]) -> str | None:
     return None
 
 
+_TEAM_SUFFIX_NOISE = (" f1 team", " formula one team", " racing", " grand prix")
+
+
 def _resolve_team(raw: str, lookup: dict[str, str]) -> str | None:
     if not raw:
         return None
     key = raw.strip().lower()
     if key in lookup:
         return lookup[key]
-    # Normalize spaces/hyphens/underscores and try again
     norm = key.replace("-", " ").replace("_", " ").strip()
     if norm in lookup:
         return lookup[norm]
+    # Strip common suffixes from incoming value ("Haas F1 Team" → "haas")
+    for suffix in _TEAM_SUFFIX_NOISE:
+        if norm.endswith(suffix):
+            stripped = norm[: -len(suffix)].strip()
+            if stripped in lookup:
+                return lookup[stripped]
     return None
+
+
+@dataclass
+class BreakdownRow:
+    asset: str       # driver code (e.g. "RUS") or constructor id (e.g. "ferrari") or raw if unresolved
+    name: str        # original label as pasted
+    kind: str        # "driver" / "constructor" / "unknown"
+    points: float
+
+
+_BREAKDOWN_LINE_RE = re.compile(r"^(.+?)[\s,:|=]+(-?\d+(?:\.\d+)?)\s*(?:pts?|points?)?\s*$", re.IGNORECASE)
+
+
+def parse_score_breakdown(
+    text: str, cfg: dict[str, Any]
+) -> tuple[list[BreakdownRow], float, list[str]]:
+    """Parse a free-form per-driver / per-constructor score paste.
+
+    Accepts lines like:
+        "Bearman: -14"
+        "Russell, 54"
+        "Ferrari 75"
+        "Racing Bulls = 18 pts"
+
+    Returns (rows, total, warnings). Rows include unresolved entries (kind='unknown')
+    so the user sees nothing silently dropped — but their points still count toward
+    the total because the user pasted them with intent.
+    """
+    rows: list[BreakdownRow] = []
+    total = 0.0
+    warnings: list[str] = []
+    if not text or not text.strip():
+        return rows, total, warnings
+
+    driver_lookup = _build_driver_name_lookup(cfg)
+    team_lookup = _build_team_name_lookup(cfg)
+
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = _BREAKDOWN_LINE_RE.match(line)
+        if not m:
+            warnings.append(f"Couldn't parse line: {raw_line!r}")
+            continue
+        label = m.group(1).strip()
+        try:
+            pts = float(m.group(2))
+        except ValueError:
+            warnings.append(f"Bad number on line: {raw_line!r}")
+            continue
+
+        code = _resolve_driver(label, driver_lookup)
+        if code:
+            rows.append(BreakdownRow(asset=code, name=label, kind="driver", points=pts))
+            total += pts
+            continue
+        tid = _resolve_team(label, team_lookup)
+        if tid:
+            rows.append(BreakdownRow(asset=tid, name=label, kind="constructor", points=pts))
+            total += pts
+            continue
+        warnings.append(f"Unknown driver/team on line: {label!r} (still added to total)")
+        rows.append(BreakdownRow(asset=label.lower(), name=label, kind="unknown", points=pts))
+        total += pts
+
+    return rows, total, warnings
 
 
 def _normalize_results_df(
@@ -253,12 +329,6 @@ def _normalize_results_df(
         out["team_id"] = pd.NA
         warnings.append(f"{kind}: no team column found — team_id left blank")
 
-    pts = _find_col(df, _POINTS_COLS)
-    if pts:
-        out["points"] = pd.to_numeric(df[pts], errors="coerce")
-    else:
-        out["points"] = pd.NA
-
     fl = _find_col(df, _FL_COLS)
     out["fastest_lap"] = df[fl].astype(bool) if fl else False
 
@@ -271,6 +341,16 @@ def _normalize_results_df(
         out["dnf"] = s.apply(lambda v: any(tok in v for tok in _DNF_TOKENS))
     else:
         out["dnf"] = False
+
+    pts = _find_col(df, _POINTS_COLS)
+    if pts:
+        out["points"] = pd.to_numeric(df[pts], errors="coerce")
+    else:
+        # Don't fake a fantasy-points number from position alone — the real
+        # rules (grid delta, overtakes, fastest lap, DOTD, constructor Q2/Q3)
+        # need richer inputs. Leave blank; the Score Round page asks for the
+        # official team total + optional breakdown instead.
+        out["points"] = pd.NA
 
     gain = _find_col(df, _GAIN_COLS)
     out["positions_gained"] = pd.to_numeric(df[gain], errors="coerce") if gain else pd.NA
