@@ -1,0 +1,8 @@
+round,team_key,asset,name,kind,points
+3,model,ferrari,Ferrari,constructor,75.0
+3,model,racing_bulls,Racing Bulls,constructor,18.0
+3,model,BEA,Bearman,driver,-14.0
+3,model,GAS,Gasly,driver,14.0
+3,model,LAW,Lawson,driver,10.0
+3,model,RUS,Russell,driver,54.0
+3,model,SAI,Sainz,driver,4.0
