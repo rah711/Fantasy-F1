@@ -30,11 +30,24 @@ data/raw/tracing_insights/**/*.csv
 # Processed data (regenerated from raw)
 data/processed/*.parquet
 data/processed/models/
-data/processed/circuit_stats.json
 data/processed/backtest/
 data/processed/optimizer_reports*/
 data/processed/optimizer_tuning*/
 data/processed/predictions/
+
+# ...but commit the production model artifacts so the deployed app can
+# load them without needing to re-run the pipeline (Streamlit Cloud has
+# an ephemeral filesystem + no access to the raw data sources). Refresh
+# these locally with `python scripts/retrain.py` and commit the diff.
+!data/processed/features.parquet
+!data/processed/circuit_stats.json
+!data/processed/models/
+data/processed/models/*
+!data/processed/models/fantasy_model.joblib
+!data/processed/models/feature_names.txt
+!data/processed/models/backtest/
+data/processed/models/backtest/*
+!data/processed/models/backtest/walk_forward_2025_predictions.parquet
 
 # OpenF1 enrichment cache
 data/cache/

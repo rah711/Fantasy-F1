@@ -1,0 +1,250 @@
+{
+  "albert_park": {
+    "safety_car_probability": 1.0,
+    "safety_car_detail": {
+      "total_races": 2,
+      "sc_races": 2,
+      "vsc_races": 0,
+      "safety_car_prob": 1.0,
+      "any_sc_or_vsc_prob": 1.0
+    }
+  },
+  "bahrain": {
+    "safety_car_probability": 0.0,
+    "safety_car_detail": {
+      "total_races": 1,
+      "sc_races": 0,
+      "vsc_races": 0,
+      "safety_car_prob": 0.0,
+      "any_sc_or_vsc_prob": 0.0
+    }
+  },
+  "baku": {
+    "overtake_difficulty": 0.463,
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 1,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "barcelona": {
+    "safety_car_probability": 0.5,
+    "safety_car_detail": {
+      "total_races": 2,
+      "sc_races": 1,
+      "vsc_races": 0,
+      "safety_car_prob": 0.5,
+      "any_sc_or_vsc_prob": 0.5
+    }
+  },
+  "cota": {
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 1,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "emilia_romagna": {
+    "safety_car_probability": 0.5,
+    "safety_car_detail": {
+      "total_races": 2,
+      "sc_races": 1,
+      "vsc_races": 2,
+      "safety_car_prob": 0.5,
+      "any_sc_or_vsc_prob": 1.0
+    }
+  },
+  "hungaroring": {
+    "safety_car_probability": 0.667,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 2,
+      "vsc_races": 1,
+      "safety_car_prob": 0.667,
+      "any_sc_or_vsc_prob": 0.667
+    }
+  },
+  "interlagos": {
+    "overtake_difficulty": 0.186,
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 1,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "jeddah": {
+    "overtake_difficulty": 0.397,
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 1,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "las_vegas": {
+    "overtake_difficulty": 0.339,
+    "safety_car_probability": 1.0,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 3,
+      "vsc_races": 3,
+      "safety_car_prob": 1.0,
+      "any_sc_or_vsc_prob": 1.0
+    }
+  },
+  "losail": {
+    "overtake_difficulty": 0.0,
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 2,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.667
+    }
+  },
+  "marina_bay": {
+    "safety_car_probability": 0.667,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 2,
+      "vsc_races": 2,
+      "safety_car_prob": 0.667,
+      "any_sc_or_vsc_prob": 0.667
+    }
+  },
+  "mexico_city": {
+    "safety_car_probability": 0.667,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 2,
+      "vsc_races": 1,
+      "safety_car_prob": 0.667,
+      "any_sc_or_vsc_prob": 0.667
+    }
+  },
+  "miami": {
+    "overtake_difficulty": 0.925,
+    "safety_car_probability": 1.0,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 3,
+      "vsc_races": 1,
+      "safety_car_prob": 1.0,
+      "any_sc_or_vsc_prob": 1.0
+    }
+  },
+  "monaco": {
+    "overtake_difficulty": 0.529,
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 1,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "montreal": {
+    "safety_car_probability": 0.667,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 2,
+      "vsc_races": 0,
+      "safety_car_prob": 0.667,
+      "any_sc_or_vsc_prob": 0.667
+    }
+  },
+  "monza": {
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 1,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "red_bull_ring": {
+    "safety_car_probability": 0.333,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 1,
+      "vsc_races": 0,
+      "safety_car_prob": 0.333,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "shanghai": {
+    "safety_car_probability": 1.0,
+    "safety_car_detail": {
+      "total_races": 2,
+      "sc_races": 2,
+      "vsc_races": 0,
+      "safety_car_prob": 1.0,
+      "any_sc_or_vsc_prob": 1.0
+    }
+  },
+  "silverstone": {
+    "safety_car_probability": 0.667,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 2,
+      "vsc_races": 2,
+      "safety_car_prob": 0.667,
+      "any_sc_or_vsc_prob": 0.667
+    }
+  },
+  "spa": {
+    "safety_car_probability": 0.5,
+    "safety_car_detail": {
+      "total_races": 4,
+      "sc_races": 2,
+      "vsc_races": 3,
+      "safety_car_prob": 0.5,
+      "any_sc_or_vsc_prob": 0.75
+    }
+  },
+  "suzuka": {
+    "safety_car_probability": 0.0,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 0,
+      "vsc_races": 1,
+      "safety_car_prob": 0.0,
+      "any_sc_or_vsc_prob": 0.333
+    }
+  },
+  "yas_marina": {
+    "overtake_difficulty": 1.0,
+    "safety_car_probability": 1.0,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 3,
+      "vsc_races": 1,
+      "safety_car_prob": 1.0,
+      "any_sc_or_vsc_prob": 1.0
+    }
+  },
+  "zandvoort": {
+    "safety_car_probability": 0.0,
+    "safety_car_detail": {
+      "total_races": 3,
+      "sc_races": 0,
+      "vsc_races": 0,
+      "safety_car_prob": 0.0,
+      "any_sc_or_vsc_prob": 0.0
+    }
+  }
+}
