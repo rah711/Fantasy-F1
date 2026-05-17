@@ -381,7 +381,11 @@ class TeamOptimizer:
         price_weight = float(self.price_weight if price_weight is None else price_weight)
         score_col = self._score_column(predictions)
 
-        budget = float(current_team.get("budget", self.budget))
+        # `current_team.budget` in config means "bank remaining" (cash leftover
+        # after buying the current team). The optimizer's cap is the *total*
+        # spending power for the new team = current team's sell-value at present
+        # prices + bank. Falls back to the fantasy cap (£100M) if no team is set.
+        bank = float(current_team.get("budget", 0.0))
         current_drivers = set(current_team.get("drivers", []))
         current_ctors = set(current_team.get("constructors", []))
         free_transfers = int(current_team.get("free_transfers", self.free_transfers_per_race))
@@ -390,6 +394,15 @@ class TeamOptimizer:
             free_transfers + banked,
             self.free_transfers_per_race + self.max_banked_transfers,
         )
+
+        if current_drivers or current_ctors:
+            current_team_value = (
+                sum(float(driver_prices.get(d, 0.0)) for d in current_drivers)
+                + sum(float(constructor_prices.get(c, 0.0)) for c in current_ctors)
+            )
+            budget = current_team_value + bank
+        else:
+            budget = self.budget
 
         driver_prices, _ = self.price_model.seed_missing_prices_for_round(
             predictions=predictions,

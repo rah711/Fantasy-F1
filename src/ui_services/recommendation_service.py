@@ -175,7 +175,10 @@ def recommend_round(
     out.to_parquet(output_path, index=False)
 
     opt = TeamOptimizer(cfg)
-    budget = float(cfg.get("current_team", {}).get("budget", cfg.get("fantasy", {}).get("budget", 100.0)))
+    # Initial-team computation uses the full fantasy budget cap (£100M by default).
+    # Note: cfg.current_team.budget is the *bank remaining*, not the cap — using it
+    # here would forbid any team since no single asset fits within bank.
+    budget = float(cfg.get("fantasy", {}).get("budget", 100.0))
     season_year = int(cfg.get("season", {}).get("year", 2026))
     rec = opt.recommend_initial_team(
         predictions=out,
