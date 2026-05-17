@@ -69,17 +69,17 @@ else:
 # Driver tenure
 # ---------------------------------------------------------------------------
 st.header("Driver tenure")
-st.caption("Each row = one driver. Each cell = a round they were on the model team, colored by their team.")
+st.caption(
+    "GitHub-contribution-style grid. Filled cells = on the model team that round "
+    "(colored by their team). Dim cells = not on the team. Dim-red cells = round cancelled."
+)
 ownership = driver_ownership_long(PROJECT_ROOT)
-# Filter out cancelled rounds so the Gantt doesn't show empty cells for them
-if not ownership.empty and cancelled_rounds:
-    ownership = ownership[~ownership["round"].astype(int).isin(cancelled_rounds)]
 prices_drivers = cfg.get("prices", {}).get("drivers", {})
 gantt = driver_tenure_gantt(ownership, calendar, drivers_cfg=prices_drivers)
 if gantt is None:
     st.info("No tenure data yet.")
 else:
-    st.altair_chart(gantt, use_container_width=True)
+    st.altair_chart(gantt, use_container_width=False)
     with st.expander("Show as table"):
         tenure = driver_tenure(PROJECT_ROOT)
         show = tenure.copy()

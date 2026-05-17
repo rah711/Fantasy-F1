@@ -216,54 +216,82 @@ def delta_vs_human_chart(cum_df: pd.DataFrame, calendar: dict[Any, Any]) -> alt.
     return chart.properties(height=380)
 
 
+_GANTT_EMPTY_COLOR = "#222230"      # not on team this round
+_GANTT_CANCELLED_COLOR = "#2a1414"  # round was cancelled
+
+
 def driver_tenure_gantt(
     ownership_df: pd.DataFrame,
     calendar: dict[Any, Any],
     drivers_cfg: dict[str, Any] | None = None,
 ) -> alt.Chart | None:
-    """Per-driver Gantt across rounds — one row per driver, a colored cell per round
-    they were on the team. Cells colored by the driver's current team.
+    """GitHub-contribution-style cell grid: drivers × rounds.
+
+    Every round in the calendar is rendered. Owned cells are filled with the
+    driver's team color; rounds where the driver wasn't on the team show as
+    dim grey; cancelled rounds show as a dim red so the gap is explained.
     """
     if ownership_df.empty:
         return None
 
-    df = ownership_df.copy()
-    df["round"] = df["round"].astype(int)
-    df["race_label"] = df["round"].apply(lambda r: format_round_label(calendar, r, short=True))
+    own = ownership_df.copy()
+    own["round"] = own["round"].astype(int)
 
-    if drivers_cfg:
-        df["team_id"] = df["driver"].apply(
-            lambda d: (drivers_cfg.get(d, {}) or {}).get("team", "")
-        )
-        df["team_color"] = df["team_id"].apply(lambda t: team_color(t) if t else "#888")
-    else:
-        df["team_color"] = "#888"
+    all_rounds = calendar_rounds(calendar, include_cancelled=True)
+    drivers_owned = sorted(own["driver"].astype(str).unique())
+    cancelled = {r for r in all_rounds if is_cancelled(calendar, r)}
+    owned_set = set(zip(own["driver"].astype(str), own["round"].astype(int)))
 
-    # Sort drivers by total rounds owned (longest tenure at top), then alpha tiebreak.
-    counts = df.groupby("driver").size().rename("count").reset_index()
+    rows: list[dict[str, Any]] = []
+    for d in drivers_owned:
+        team_id = (drivers_cfg or {}).get(d, {}).get("team", "") if drivers_cfg else ""
+        for r in all_rounds:
+            is_owned = (d, r) in owned_set
+            is_cancel = r in cancelled
+            if is_cancel:
+                color = _GANTT_CANCELLED_COLOR
+                status = "cancelled"
+            elif is_owned:
+                color = team_color(team_id) if team_id else "#888"
+                status = "on team"
+            else:
+                color = _GANTT_EMPTY_COLOR
+                status = "—"
+            rows.append({
+                "driver": d,
+                "round": r,
+                "race_label": format_round_label(calendar, r, short=True),
+                "team_id": team_id if is_owned else "",
+                "color": color,
+                "status": status,
+            })
+    df = pd.DataFrame(rows)
+
+    # Sort drivers: most-tenured first (longest "spine" at top)
+    counts = own.groupby("driver").size().rename("count").reset_index()
     driver_order = (
         counts.sort_values(["count", "driver"], ascending=[False, True])["driver"].tolist()
     )
 
     label_expr = _x_axis_labels_js(calendar)
 
-    cells = (
+    return (
         alt.Chart(df)
-        .mark_rect(stroke="#15151E", strokeWidth=1, cornerRadius=2)
+        .mark_rect(stroke="#15151E", strokeWidth=2, cornerRadius=2)
         .encode(
             x=alt.X(
-                "round:O", title="Round",
-                sort=alt.EncodingSortField("round"),
+                "round:O", title=None,
+                sort=all_rounds,
                 axis=alt.Axis(labelExpr=label_expr, labelAngle=-30, labelPadding=6),
             ),
             y=alt.Y("driver:N", title=None, sort=driver_order),
-            color=alt.Color("team_color:N", scale=None, legend=None),
+            color=alt.Color("color:N", scale=None, legend=None),
             tooltip=[
                 alt.Tooltip("driver:N", title="Driver"),
                 alt.Tooltip("race_label:N", title="Race"),
-                alt.Tooltip("team_id:N", title="Team") if drivers_cfg else alt.Tooltip("round:O"),
+                alt.Tooltip("status:N", title="Status"),
+                alt.Tooltip("team_id:N", title="Team"),
             ],
         )
-        .properties(height=alt.Step(28))
+        .properties(height=alt.Step(22), width=alt.Step(24))
     )
-    return cells
