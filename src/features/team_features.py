@@ -47,6 +47,21 @@ def add_team_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
     race = out[out["session_type"] == "race"].copy() if "session_type" in out.columns else out.copy()
     out["team_fastest_pitstop_avg"] = float("nan")
     out["team_avg_pitstop_avg"] = float("nan")
+    out["team_year_baseline"] = float("nan")
+
+    # Team-year baseline: running avg finishing position of the constructor's
+    # drivers, within the current season, shift(1) so no leakage. This is the
+    # data-derived replacement for manual `team_development_score` — it lets the
+    # model know e.g. "Cadillac 2026 finishes around P15" vs "Mercedes 2026
+    # finishes around P3" without anyone hand-rating teams.
+    if not race.empty and "finish_position" in race.columns:
+        race = race.sort_values(["constructor_id", "year", "round"])
+        fin_b = pd.to_numeric(race["finish_position"], errors="coerce").fillna(20)
+        race["team_year_baseline"] = (
+            race.assign(_fb=fin_b).groupby(["constructor_id", "year"])["_fb"]
+            .transform(lambda s: s.shift(1).expanding().mean())
+        )
+        out.loc[race.index, "team_year_baseline"] = race["team_year_baseline"]
 
     if not race.empty and "fastest_pitstop_ms" in race.columns:
         race = race.sort_values(["constructor_id", "year", "round"])

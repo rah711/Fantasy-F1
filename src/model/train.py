@@ -27,13 +27,17 @@ FEATURE_COLS = [
     # Driver rolling
     "driver_rolling_pts_3", "driver_rolling_pts_5", "driver_avg_finish_at_circuit",
     "driver_overtake_rate", "driver_dnf_rate",
+    # Driver skill (persistent across team changes — teammate-delta rolling avg)
+    "driver_skill_residual",
     # Driver cold-start
     "driver_prev_season_avg_pts", "driver_prev_season_avg_finish",
     "driver_prev_season_dnf_rate", "driver_prev_season_overtake_rate",
     "driver_prev_season_races", "driver_is_cold_start", "driver_early_round_flag",
     "driver_cold_start_pressure",
-    # Team static + pitstop
-    "team_development_score", "team_fastest_pitstop_avg", "team_avg_pitstop_avg",
+    # Team — data-derived current-year baseline (replaces manual development_score)
+    "team_year_baseline",
+    # Team pitstop
+    "team_fastest_pitstop_avg", "team_avg_pitstop_avg",
     # Team cold-start
     "team_prev_season_avg_pts", "team_prev_season_avg_finish",
     "team_prev_season_dnf_rate", "team_prev_season_races",

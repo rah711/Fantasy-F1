@@ -127,7 +127,7 @@ fantasy:
   chips:
     available_immediately:
       - autopilot          # Retroactively gives DRS Boost to highest-scoring driver
-      - extra_drs_boost    # 3x multiplier on one driver (instead of 2x)
+      - extra_drs_boost    # Adds a 3x DRS slot ON TOP OF the regular 2x slot (two drivers get boosted that weekend)
       - no_negative        # Floors score at 0 per scoring category (not overall)
     unlocked_after_race_1:
       - wildcard           # Unlimited free transfers for that race window
@@ -598,7 +598,7 @@ regulation:
   # era_weight: 0.0 = trust only pre-2026 history, 1.0 = trust only 2026 observed
   # Increase this as the season progresses and the car hierarchy clarifies.
   # Suggested schedule: R1=0.05, R3=0.18, R5=0.40, R8=0.75, R10=0.89
-  era_weight: 0.18
+  era_weight: 0.65   # Bumped for R7 prep (suggested schedule R7=0.65)
 
   # uncertainty_multiplier: widens prediction intervals to account for the
   # genuinely unknown 2026 car hierarchy. Start at 2.0 (double the normal

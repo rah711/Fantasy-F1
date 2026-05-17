@@ -37,6 +37,7 @@ def add_driver_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFram
         out["driver_avg_finish_at_circuit"] = float("nan")
         out["driver_overtake_rate"] = float("nan")
         out["driver_dnf_rate"] = float("nan")
+        out["driver_skill_residual"] = float("nan")
         for c in cold_cols:
             out[c] = float("nan")
         return out
@@ -48,6 +49,7 @@ def add_driver_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFram
         out["driver_avg_finish_at_circuit"] = float("nan")
         out["driver_overtake_rate"] = float("nan")
         out["driver_dnf_rate"] = float("nan")
+        out["driver_skill_residual"] = float("nan")
         for c in cold_cols:
             out[c] = float("nan")
         return out
@@ -75,6 +77,23 @@ def add_driver_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFram
     race["driver_dnf_rate"] = (
         race.assign(_dnf=dnf).groupby("driver_code")["_dnf"].transform(lambda s: s.shift(1).expanding().mean())
     )
+
+    # Driver-vs-teammate skill residual: avg (teammate_finish - driver_finish)
+    # across the driver's historical races. Persistent across team changes —
+    # captures intrinsic driver skill independent of the car they're in. With
+    # shift(1) so the row predicting race N uses skill computed through N-1.
+    race = race.assign(_finish_aux=finish.values)
+    grp = race.groupby(["constructor_id", "year", "round"])["_finish_aux"]
+    group_sum = grp.transform("sum")
+    group_count = grp.transform("count")
+    denom = (group_count - 1).replace(0, float("nan"))
+    teammate_finish = (group_sum - race["_finish_aux"]) / denom
+    skill_delta = teammate_finish - race["_finish_aux"]
+    race["driver_skill_residual"] = (
+        race.assign(_sd=skill_delta).groupby("driver_code")["_sd"]
+        .transform(lambda s: s.shift(1).expanding().mean())
+    )
+    race = race.drop(columns=["_finish_aux"])
 
     # Cold-start carryover: use previous season aggregates as priors.
     yearly = (
@@ -116,6 +135,7 @@ def add_driver_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFram
     out["driver_avg_finish_at_circuit"] = float("nan")
     out["driver_overtake_rate"] = float("nan")
     out["driver_dnf_rate"] = float("nan")
+    out["driver_skill_residual"] = float("nan")
     for c in cold_cols:
         out[c] = float("nan")
     out.loc[race.index, "driver_rolling_pts_3"] = race["driver_rolling_pts_3"]
@@ -123,6 +143,7 @@ def add_driver_features(df: pd.DataFrame, config: dict[str, Any]) -> pd.DataFram
     out.loc[race.index, "driver_avg_finish_at_circuit"] = race["driver_avg_finish_at_circuit"]
     out.loc[race.index, "driver_overtake_rate"] = race["driver_overtake_rate"]
     out.loc[race.index, "driver_dnf_rate"] = race["driver_dnf_rate"]
+    out.loc[race.index, "driver_skill_residual"] = race["driver_skill_residual"]
     for c in cold_cols:
         out.loc[race.index, c] = race[c]
     return out
