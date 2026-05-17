@@ -115,8 +115,12 @@ def cumulative_points_by_team(project_root: str | Path) -> pd.DataFrame:
     """Long-form: round, team_key, team_name, cumulative_points.
 
     Combines model team (from history.csv `actual_points`) with competitors.csv.
+    History is the source of truth for `model`; any `model` row in
+    competitors.csv that overlaps with history is skipped to prevent duplicates
+    (Altair would sum them as stacked bars).
     """
     rows: list[dict[str, Any]] = []
+    model_rounds_from_history: set[int] = set()
 
     hist = load_history(project_root)
     if not hist.empty and "actual_points" in hist.columns:
@@ -132,10 +136,15 @@ def cumulative_points_by_team(project_root: str | Path) -> pd.DataFrame:
                 "cumulative_points": float(r["cumulative_points"]),
                 "round_points": float(r["actual_points"]),
             })
+            model_rounds_from_history.add(int(r["round"]))
 
     comp = load_competitor_history(project_root)
     if not comp.empty:
         comp["points"] = pd.to_numeric(comp["points"], errors="coerce").fillna(0.0)
+        # Drop any model rows that history.csv has already covered
+        if model_rounds_from_history:
+            mask = (comp["team_key"] == "model") & (comp["round"].astype(int).isin(model_rounds_from_history))
+            comp = comp[~mask]
         comp = comp.sort_values(["team_key", "round"])
         comp["cumulative_points"] = comp.groupby("team_key")["points"].cumsum()
         for _, r in comp.iterrows():
