@@ -52,8 +52,15 @@ if log.empty:
 else:
     show = log.copy().sort_values("round", ascending=False)
     show["Race"] = show["round"].astype(int).apply(lambda r: format_round_label(calendar, r, short=True))
-    show = show[["Race", "drivers_in", "drivers_out", "constructors_in", "constructors_out", "drs_boost", "chips_used", "actual_points", "notes"]]
-    show.columns = ["Race", "In (drivers)", "Out (drivers)", "In (constructors)", "Out (constructors)", "DRS Boost", "Chips used", "Points scored", "Notes"]
+    cols_avail = [c for c in ["Race", "drivers_in", "drivers_out", "constructors_in", "constructors_out", "drs_boost", "chips_used", "chip_details", "actual_points", "notes"] if c in show.columns]
+    show = show[cols_avail]
+    rename_map = {
+        "drivers_in": "In (drivers)", "drivers_out": "Out (drivers)",
+        "constructors_in": "In (constructors)", "constructors_out": "Out (constructors)",
+        "drs_boost": "DRS Boost", "chips_used": "Chips used",
+        "chip_details": "Chip detail", "actual_points": "Points scored", "notes": "Notes",
+    }
+    show = show.rename(columns=rename_map)
     st.dataframe(show, use_container_width=True, hide_index=True)
 
 
@@ -95,8 +102,15 @@ else:
             with cols[1]:
                 st.markdown(f"**{race_label}**")
                 st.markdown(f"**Drivers:** {r['drivers']}  ·  **Constructors:** {r['constructors']}  ·  **DRS:** {r['drs_boost']}")
+                chip_used = str(r.get("chips_used", "") or "").strip()
+                chip_detail = str(r.get("chip_details", "") or "").strip()
+                if chip_used:
+                    line = f"**Chip:** `{chip_used}`"
+                    if chip_detail:
+                        line += f" — {chip_detail}"
+                    st.markdown(line)
                 if notes:
                     st.markdown(f"_{notes}_")
-                else:
+                elif not chip_used:
                     st.caption("(no notes recorded for this round)")
         st.markdown("&nbsp;")

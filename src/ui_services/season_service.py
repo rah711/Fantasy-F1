@@ -188,6 +188,7 @@ def transfer_log(project_root: str | Path) -> pd.DataFrame:
             "constructors_out": ", ".join(out_c) or "—",
             "drs_boost": str(r.get("drs_boost", "") or ""),
             "chips_used": str(r.get("chips_used", "") or ""),
+            "chip_details": str(r.get("chip_details", "") or ""),
             "actual_points": r.get("actual_points", ""),
             "notes": str(r.get("notes", "") or ""),
         })

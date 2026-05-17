@@ -3,6 +3,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import datetime as dt
+import os
+import subprocess
+from typing import Any
+
 import pandas as pd
 import streamlit as st
 
@@ -144,7 +149,7 @@ with wc:
 st.header("2. Latest data")
 st.caption("Drop in this week's CSVs. Each tab is independent — upload only what's new.")
 
-tabs = st.tabs(["Driver prices", "Constructor prices", "Last race results", "Last qualifying"])
+tabs = st.tabs(["Prices (drivers + constructors)", "Last race results", "Last qualifying"])
 
 
 def _csv_input(label: str, key: str, placeholder: str) -> str:
@@ -158,33 +163,16 @@ def _csv_input(label: str, key: str, placeholder: str) -> str:
     return pasted
 
 
-def _round_picker(label: str, key: str, default_round: int) -> int:
-    """Round dropdown bound to the season calendar (cancelled rounds stay listed)."""
-    try:
-        idx = all_rounds.index(default_round)
-    except ValueError:
-        idx = 0
-    return st.selectbox(
-        label,
-        options=all_rounds,
-        index=idx,
-        format_func=lambda r: format_round_label(calendar, r),
-        key=key,
-    )
-
-
-_DRIVER_PRICE_EXAMPLE = (
-    "Driver,Price\n"
-    "Verstappen,28.1\n"
-    "Russell,28.0\n"
-    "Norris,26.8\n"
-    "(Names or codes both work — VER/RUS/NOR also accepted.)"
-)
-_CTOR_PRICE_EXAMPLE = (
-    "Constructor,Price\n"
-    "Mercedes,29.9\n"
-    "Red Bull Racing,28.8\n"
-    "McLaren,28.5"
+_PRICES_EXAMPLE = (
+    "type,name,price_million_usd,pct_picked,season_pts\n"
+    "Driver,George Russell,28.6,27.00%,153\n"
+    "Driver,Max Verstappen,28.3,17.00%,129\n"
+    "Driver,Lando Norris,26.4,9.00%,89\n"
+    "Constructor,Mercedes,30.5,33.00%,407\n"
+    "Constructor,Red Bull Racing,29.2,7.00%,143\n"
+    "...\n"
+    "(Single column 'name' for both; rows are split by 'type'. "
+    "Extra columns are ignored.)"
 )
 _RACE_EXAMPLE = (
     "POS,NO,DRIVER,TEAM,LAPS,TIME / RETIRED,PTS\n"
@@ -200,76 +188,67 @@ _QUALI_EXAMPLE = (
 )
 
 
-# Defaults: prices apply ahead of the picked next round; results are from the
-# previous active round (cancelled rounds skipped).
-_default_prices_round = int(round_number)
-_default_results_round = previous_active_round(calendar, int(round_number))
+# Derived from the single round selector in section 1: prices apply ahead
+# of `round_number`; race + qualifying results are from the previous active
+# round (skipping any cancelled rounds in between).
+prices_round = int(round_number)
+results_round = previous_active_round(calendar, int(round_number))
+
+st.caption(
+    f"Prices apply ahead of **{format_round_label(calendar, prices_round, short=True)}**. "
+    f"Race + qualifying results are from **{format_round_label(calendar, results_round, short=True)}**. "
+    "(Change the round at the top of the page if you're backfilling a different week.)"
+)
 
 
 with tabs[0]:
-    drv_round = _round_picker(
-        "Prices apply ahead of round", "drv_round", _default_prices_round,
-    )
-    text = _csv_input("driver prices", "drv_prices", _DRIVER_PRICE_EXAMPLE)
-    if st.button("Apply driver prices", key="apply_drv"):
-        res = ingest_driver_prices(get_working_config(), text)
-        if res.ok:
-            set_working_config(res.updated_config)
-            snap = save_price_snapshot(text, PROJECT_ROOT, int(drv_round), "drivers")
-            st.success(f"Updated prices for {res.rows} drivers (ahead of R{int(drv_round)}).")
-            if snap:
-                st.caption(f"Snapshot archived: {snap}")
-            for w in res.warnings:
-                st.warning(w)
+    text = _csv_input("prices", "all_prices", _PRICES_EXAMPLE)
+    if st.button("Apply prices", key="apply_prices"):
+        cfg_now = get_working_config()
+        drv_res = ingest_driver_prices(cfg_now, text)
+        if not drv_res.ok:
+            for e in drv_res.errors:
+                st.error(f"Drivers: {e}")
         else:
-            for e in res.errors:
-                st.error(e)
+            cfg_now = drv_res.updated_config
+            ctor_res = ingest_constructor_prices(cfg_now, text)
+            if not ctor_res.ok:
+                for e in ctor_res.errors:
+                    st.error(f"Constructors: {e}")
+            else:
+                set_working_config(ctor_res.updated_config)
+                snap = save_price_snapshot(text, PROJECT_ROOT, prices_round, "combined")
+                st.success(
+                    f"Updated **{drv_res.rows} drivers** + **{ctor_res.rows} constructors** "
+                    f"(prices apply ahead of R{prices_round})."
+                )
+                if snap:
+                    st.caption(f"Snapshot archived: {snap}")
+                for w in drv_res.warnings:
+                    st.warning(f"Drivers: {w}")
+                for w in ctor_res.warnings:
+                    st.warning(f"Constructors: {w}")
 
 with tabs[1]:
-    ctor_round = _round_picker(
-        "Prices apply ahead of round", "ctor_round", _default_prices_round,
-    )
-    text = _csv_input("constructor prices", "ctor_prices", _CTOR_PRICE_EXAMPLE)
-    if st.button("Apply constructor prices", key="apply_ctor"):
-        res = ingest_constructor_prices(get_working_config(), text)
+    text = _csv_input("race results", "race_res", _RACE_EXAMPLE)
+    if st.button("Save race results", key="save_race"):
+        res = ingest_race_results(text, PROJECT_ROOT, results_round, cfg=get_working_config())
         if res.ok:
-            set_working_config(res.updated_config)
-            snap = save_price_snapshot(text, PROJECT_ROOT, int(ctor_round), "constructors")
-            st.success(f"Updated prices for {res.rows} constructors (ahead of R{int(ctor_round)}).")
-            if snap:
-                st.caption(f"Snapshot archived: {snap}")
+            st.success(f"Saved {res.rows} drivers' race results for R{results_round} → {res.saved_path}")
             for w in res.warnings:
                 st.warning(w)
+            if res.parsed is not None and not res.parsed.empty:
+                st.dataframe(res.parsed.head(10), use_container_width=True)
         else:
             for e in res.errors:
                 st.error(e)
 
 with tabs[2]:
-    race_round = _round_picker(
-        "Results are from round", "race_round", _default_results_round,
-    )
-    text = _csv_input("race results", "race_res", _RACE_EXAMPLE)
-    if st.button("Save race results", key="save_race"):
-        res = ingest_race_results(text, PROJECT_ROOT, int(race_round), cfg=get_working_config())
-        if res.ok:
-            st.success(f"Saved {res.rows} drivers' race results for R{int(race_round)} → {res.saved_path}")
-            for w in res.warnings:
-                st.warning(w)
-            if res.parsed is not None and not res.parsed.empty:
-                st.dataframe(res.parsed.head(10), use_container_width=True)
-        else:
-            for e in res.errors:
-                st.error(e)
-
-with tabs[3]:
-    quali_round = _round_picker(
-        "Results are from round", "quali_round", _default_results_round,
-    )
     text = _csv_input("qualifying results", "quali_res", _QUALI_EXAMPLE)
     if st.button("Save qualifying results", key="save_quali"):
-        res = ingest_qualifying_results(text, PROJECT_ROOT, int(quali_round), cfg=get_working_config())
+        res = ingest_qualifying_results(text, PROJECT_ROOT, results_round, cfg=get_working_config())
         if res.ok:
-            st.success(f"Saved {res.rows} drivers' qualifying results for R{int(quali_round)} → {res.saved_path}")
+            st.success(f"Saved {res.rows} drivers' qualifying results for R{results_round} → {res.saved_path}")
             for w in res.warnings:
                 st.warning(w)
             if res.parsed is not None and not res.parsed.empty:
@@ -280,9 +259,77 @@ with tabs[3]:
 
 
 # ---------------------------------------------------------------------------
-# 3. Generate recommendation
+# 3. Refresh model (optional but recommended after each race)
 # ---------------------------------------------------------------------------
-st.header("3. Recommendation")
+st.header("3. Refresh model (optional)")
+
+_model_path = PROJECT_ROOT / "data" / "processed" / "models" / "fantasy_model.joblib"
+_features_path = PROJECT_ROOT / "data" / "processed" / "features.parquet"
+
+
+def _file_age(p: "os.PathLike[str]") -> str:
+    p = PROJECT_ROOT / p if not str(p).startswith("/") else p
+    if not os.path.exists(p):
+        return "missing"
+    mtime = dt.datetime.fromtimestamp(os.path.getmtime(p))
+    age_days = (dt.datetime.now() - mtime).days
+    return f"{mtime.strftime('%Y-%m-%d')} ({age_days} day{'s' if age_days != 1 else ''} old)"
+
+
+_model_age = _file_age(_model_path)
+_features_age = _file_age(_features_path)
+
+stale = "missing" in (_model_age, _features_age) or (
+    "day" in _model_age and int(_model_age.split("(")[1].split(" ")[0]) > 7
+)
+status_line = f"Model last trained: **{_model_age}** · Features last built: **{_features_age}**"
+if stale:
+    st.warning(f"{status_line} — consider retraining before generating.")
+else:
+    st.caption(status_line)
+
+st.caption(
+    "Retraining re-pulls 2026 race results from FastF1 and updates the model, "
+    "so predictions for the upcoming round incorporate everything that's happened so far. "
+    "Expect 5–15 minutes the first time you do it after several races; subsequent runs "
+    "are faster because FastF1 caches."
+)
+
+rt1, rt2 = st.columns([1, 2])
+with rt1:
+    if st.button("Retrain model with latest data", key="btn_retrain"):
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(PROJECT_ROOT)
+        try:
+            with st.status("Retraining model (pulling latest data + rebuilding features + training)…", expanded=True) as status:
+                proc = subprocess.run(
+                    [__import__("sys").executable, "scripts/retrain.py"],
+                    cwd=str(PROJECT_ROOT), env=env,
+                    capture_output=True, text=True,
+                )
+                tail = (proc.stdout or "")[-4000:] + "\n" + (proc.stderr or "")[-2000:]
+                st.code(tail)
+                if proc.returncode == 0:
+                    status.update(label="Retrain complete.", state="complete")
+                    st.session_state.pop("wizard_recommendation", None)
+                    st.session_state.pop("wizard_mode", None)
+                    st.success("Model updated. Click Generate below to use the new predictions.")
+                else:
+                    status.update(label=f"Retrain failed (exit {proc.returncode}).", state="error")
+        except Exception as e:
+            st.error(f"Retrain failed: {e}")
+with rt2:
+    st.caption(
+        "Tip: the retrain script is also runnable from the CLI as "
+        "`PYTHONPATH=. python scripts/retrain.py` — useful if you'd rather kick it off "
+        "in a terminal and keep the wizard responsive."
+    )
+
+
+# ---------------------------------------------------------------------------
+# 4. Generate recommendation
+# ---------------------------------------------------------------------------
+st.header("4. Recommendation")
 
 col_gen, col_info = st.columns([1, 3])
 with col_gen:
@@ -425,41 +472,128 @@ def _render_transfers(payload: dict) -> None:
         f"DRS Boost doubles the chosen driver's full weekend score (qualifying + race + sprint if applicable)."
     )
 
-    st.markdown("##### Chip considerations")
-    chips_left = team.get("chips_remaining", []) or []
-    if not chips_left:
-        st.caption("No chips remaining.")
-    else:
-        chip_notes = _chip_notes(chips_left, rain_prob=float(rain), is_sprint=int(round_number) in set(season.get("sprint_rounds", [])))
-        for chip, note in chip_notes.items():
-            st.markdown(f"- **{chip}** — {note}")
-
-
-def _chip_notes(chips_left: list[str], rain_prob: float, is_sprint: bool) -> dict[str, str]:
-    notes: dict[str, str] = {}
-    for chip in chips_left:
-        cl = chip.lower()
-        if cl == "no_negative":
-            if rain_prob >= 0.5:
-                notes[chip] = "_Worth considering_ — high rain probability raises DNF risk."
-            else:
-                notes[chip] = "Save for a wet/chaotic round."
-        elif cl == "extra_drs_boost":
-            if is_sprint:
-                notes[chip] = "_Worth considering_ — sprint weekend means more scoring sessions to double."
-            else:
-                notes[chip] = "Save for a sprint weekend or a high-confidence pick."
-        elif cl == "wildcard":
-            notes[chip] = "Use only if the optimal team would gain 30+ points over your current team and free transfers can't cover it."
-        elif cl == "limitless":
-            notes[chip] = "Use when one expensive driver dominates a track (e.g. Verstappen at high-downforce circuits in the wet)."
-        elif cl == "autopilot":
-            notes[chip] = "Use if you're locked into a poor performer you can't transfer out."
-        elif cl == "final_fix":
-            notes[chip] = "Hold for late-season qualifying surprises — lets you swap one driver after Saturday."
+    st.markdown("##### Chip decision (max 1 per weekend)")
+    chips_left = list(team.get("chips_remaining", []) or [])
+    # Predictions parquet gives us per-driver expected points — needed to name a
+    # target driver for chips like extra_drs_boost (which applies to a single driver).
+    preds_df = None
+    preds_path = payload.get("round_out", {}).get("predictions_path")
+    if preds_path:
+        try:
+            preds_df = pd.read_parquet(preds_path)
+        except Exception:
+            preds_df = None
+    decision = _chip_decision(
+        chips_left=chips_left,
+        transfer_out=transfer_out,
+        rain_prob=float(rain),
+        is_sprint=int(round_number) in set(season.get("sprint_rounds", [])),
+        predictions_df=preds_df,
+    )
+    if decision is None:
+        if not chips_left:
+            st.info("**Hold** — no chips remaining.")
         else:
-            notes[chip] = "Save for later."
-    return notes
+            st.info(
+                f"**Don't play a chip this weekend.** None of your remaining chips "
+                f"({', '.join(chips_left)}) clears the recommendation threshold for {format_round_label(calendar, int(round_number), short=True)}."
+            )
+    else:
+        chip, score, rationale = decision
+        st.success(f"**Play `{chip}` this weekend** (confidence {score}/100). {rationale}")
+        other_chips = [c for c in chips_left if c != chip]
+        if other_chips:
+            st.caption(f"Holding: {', '.join(other_chips)}")
+
+
+def _chip_decision(
+    chips_left: list[str],
+    transfer_out: dict[str, Any],
+    rain_prob: float,
+    is_sprint: bool,
+    predictions_df: pd.DataFrame | None = None,
+) -> tuple[str, int, str] | None:
+    """Score each remaining chip 0-100; return the best if any clears the threshold.
+
+    Threshold is intentionally cautious (60+) because chips are scarce — better
+    to hold than to burn on a marginal weekend. Returns (chip, score, rationale)
+    or None if nothing recommended.
+    """
+    if not chips_left:
+        return None
+
+    rec_obj = transfer_out.get("recommendation", {}) or {}
+    n_trans = int(transfer_out.get("num_transfers", 0))
+    free_alw = int(transfer_out.get("free_transfer_allowance", 0))
+    hits_needed = max(0, n_trans - free_alw)  # transfers over the free allowance
+    expected_pts = float(rec_obj.get("expected_points_next_race", 0.0))
+
+    scores: dict[str, tuple[int, str]] = {}
+    chips_set = {c.lower(): c for c in chips_left}
+
+    # no_negative: scales with rain probability (DNF risk insurance, penalty is -20/driver)
+    if "no_negative" in chips_set:
+        s = int(min(100, rain_prob * 130))  # 50% rain → 65; 80% → 100
+        if s >= 60:
+            scores[chips_set["no_negative"]] = (
+                s, f"Rain probability {rain_prob:.0%} means real DNF risk — chip prevents the -20pt hit per retirement."
+            )
+
+    # extra_drs_boost: adds a SECOND DRS slot at 3× alongside the regular 2× slot.
+    # Two drivers get boosted that weekend. Optimal assignment: 3× on the team's
+    # top predicted scorer, 2× on the team's second-highest.
+    if "extra_drs_boost" in chips_set and is_sprint:
+        team_drivers = list(rec_obj.get("drivers", []) or [])
+        target_3x: str | None = None
+        target_3x_pts: float | None = None
+        target_2x: str | None = None
+        target_2x_pts: float | None = None
+        if predictions_df is not None and team_drivers:
+            team_preds = (
+                predictions_df[predictions_df["driver_code"].isin(team_drivers)]
+                .sort_values("y_pred", ascending=False)
+                .reset_index(drop=True)
+            )
+            if len(team_preds) >= 1:
+                target_3x = str(team_preds.iloc[0]["driver_code"])
+                target_3x_pts = float(team_preds.iloc[0]["y_pred"])
+            if len(team_preds) >= 2:
+                target_2x = str(team_preds.iloc[1]["driver_code"])
+                target_2x_pts = float(team_preds.iloc[1]["y_pred"])
+        if not target_3x:
+            target_3x = str(rec_obj.get("drs_boost", "") or "?")
+
+        def _fmt(code: str | None, pts: float | None) -> str:
+            if not code:
+                return "?"
+            return f"`{code}` ({pts:.1f} pts)" if pts is not None else f"`{code}`"
+
+        rationale = (
+            f"Sprint weekend — extra DRS Boost adds a second boost slot. "
+            f"Play **3× on {_fmt(target_3x, target_3x_pts)}** (top scorer), "
+            f"**2× on {_fmt(target_2x, target_2x_pts)}** (second highest). "
+            "Multipliers compound across qualifying + sprint + race."
+        )
+        scores[chips_set["extra_drs_boost"]] = (70, rationale)
+
+    # wildcard: free unlimited transfers — worth it if you'd take 4+ hits to rebuild
+    if "wildcard" in chips_set and hits_needed >= 4:
+        s = min(100, 60 + hits_needed * 5)
+        scores[chips_set["wildcard"]] = (
+            s, f"Optimal rebuild requires {hits_needed} hits beyond free transfers — wildcard saves {hits_needed*10}+ pts in penalties."
+        )
+
+    # limitless: ignore budget for one race — needs a clear "dream team" case
+    # Hard to detect from current outputs; require strong expected swing as proxy.
+    # Skipped for now — would need a separate optimization run without budget cap.
+
+    # autopilot / final_fix: situational, hard to model — leave as "hold" by default.
+
+    if not scores:
+        return None
+    best = max(scores.items(), key=lambda kv: kv[1][0])
+    chip, (score, rationale) = best
+    return chip, score, rationale
 
 
 payload = st.session_state.get("wizard_recommendation")
@@ -475,7 +609,7 @@ else:
 # ---------------------------------------------------------------------------
 # 4. Lock in
 # ---------------------------------------------------------------------------
-st.header("4. Lock in")
+st.header("5. Lock in")
 
 if not payload:
     st.caption("Generate a recommendation first.")
@@ -487,7 +621,20 @@ else:
 
     locked_drivers = list(rec["drivers"])
     locked_constructors = list(rec["constructors"])
-    locked_drs = rec["drs_boost"]
+    rec_drs = rec["drs_boost"]
+
+    # DRS override — model's pick is only as good as its predictions, so let the
+    # user swap to any driver on the team if their human read disagrees.
+    drs_idx = locked_drivers.index(rec_drs) if rec_drs in locked_drivers else 0
+    locked_drs = st.selectbox(
+        f"DRS Boost driver (model recommends `{rec_drs}`)",
+        options=locked_drivers,
+        index=drs_idx,
+        format_func=lambda d: f"{d} — {cfg.get('prices', {}).get('drivers', {}).get(d, {}).get('name', '')}",
+        help="The model picks the driver with the highest predicted score for this race. Override if your read disagrees.",
+    )
+    if locked_drs != rec_drs:
+        st.caption(f"_Overriding model pick: `{rec_drs}` → `{locked_drs}`_")
 
     lk1, lk2 = st.columns(2)
     with lk1:
@@ -505,10 +652,36 @@ else:
             min_value=0, max_value=10, value=int(team.get("banked_transfers", 0)), step=1,
         )
         chips_used = st.multiselect(
-            "Chips used this week (if any)",
+            "Chips used this week (max 1)",
             options=team.get("chips_remaining", []) or [],
             default=[],
+            max_selections=1,
         )
+
+    chip_details = ""
+    if chips_used:
+        chip = chips_used[0]
+        if chip == "extra_drs_boost":
+            placeholder = "e.g. 3× on VER, 2× on PER"
+        elif chip == "wildcard":
+            placeholder = "e.g. Rebuilt entire team — sold SAI/BEA/LAW, bought ANT/HAM/HAD"
+        elif chip == "limitless":
+            placeholder = "e.g. Picked all top-tier drivers — VER + RUS + NOR + PIA + LEC, Mercedes + Ferrari"
+        elif chip == "no_negative":
+            placeholder = "e.g. Played for the wet Spa weekend"
+        elif chip == "final_fix":
+            placeholder = "e.g. Swapped HAD for ALO after Saturday qualifying"
+        elif chip == "autopilot":
+            placeholder = "e.g. Auto-DRS to highest scorer (no manual pick needed)"
+        else:
+            placeholder = "Describe how you played the chip"
+        chip_details = st.text_input(
+            f"How was the **{chip}** chip played?",
+            value="",
+            placeholder=placeholder,
+            help="Free-text notes — saved to history.csv so you can reference later.",
+        )
+
     lockin_notes = st.text_input("Notes (optional, shown in visitor view)", value="")
 
     if st.button("Lock in this team", type="primary", key="lockin"):
@@ -541,6 +714,7 @@ else:
             free_transfers_after=int(free_after),
             banked_transfers_after=int(banked_after),
             notes=lockin_notes,
+            chip_details=chip_details,
         )
         st.success(f"Locked in. History updated at {hist_csv_path}.")
 

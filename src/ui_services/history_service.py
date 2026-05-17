@@ -21,6 +21,7 @@ HISTORY_COLUMNS = [
     "constructors",
     "drs_boost",
     "chips_used",
+    "chip_details",
     "budget_after",
     "free_transfers_after",
     "banked_transfers_after",
@@ -51,6 +52,7 @@ def append_lockin(
     free_transfers_after: int,
     banked_transfers_after: int,
     notes: str = "",
+    chip_details: str = "",
 ) -> Path:
     """Append (or replace) the row for `round_number`. Returns the file path."""
     p = history_path(project_root)
@@ -64,6 +66,7 @@ def append_lockin(
         "constructors": ",".join(str(c).lower() for c in constructors),
         "drs_boost": str(drs_boost).upper() if drs_boost else "",
         "chips_used": ",".join(chips_used) if chips_used else "",
+        "chip_details": str(chip_details or ""),
         "budget_after": round(float(budget_after), 2),
         "free_transfers_after": int(free_transfers_after),
         "banked_transfers_after": int(banked_transfers_after),

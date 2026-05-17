@@ -45,15 +45,34 @@ def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
 # Price CSV ingest (drivers + constructors)
 # ---------------------------------------------------------------------------
 
-_DRIVER_CODE_COLS = ["code", "driver_code", "driver", "asset", "dr", "abbr"]
-_CTOR_CODE_COLS = ["code", "constructor_id", "constructor", "team", "team_id", "asset", "cr"]
-_PRICE_COLS = ["price", "value", "cost", "current_price"]
+_DRIVER_CODE_COLS = ["code", "driver_code", "driver", "asset", "dr", "abbr", "name"]
+_CTOR_CODE_COLS = ["code", "constructor_id", "constructor", "team", "team_id", "asset", "cr", "name"]
+_PRICE_COLS = ["price", "value", "cost", "current_price", "price_million_usd", "price_usd", "price_m"]
+_TYPE_COLS = ["type", "kind", "category", "asset_type"]
+_DRIVER_TYPE_TOKENS = {"driver", "drivers"}
+_CTOR_TYPE_TOKENS = {"constructor", "constructors", "team", "teams"}
+
+
+def _filter_by_type(df: pd.DataFrame, want: str) -> pd.DataFrame:
+    """If a type column exists, keep only rows matching `want` ('driver' or 'constructor').
+    Returns df unchanged if no type column is present (so single-kind CSVs still work).
+    """
+    type_col = _find_col(df, _TYPE_COLS)
+    if not type_col:
+        return df
+    keep = _DRIVER_TYPE_TOKENS if want == "driver" else _CTOR_TYPE_TOKENS
+    mask = df[type_col].astype(str).str.strip().str.lower().isin(keep)
+    return df[mask].reset_index(drop=True)
 
 
 def ingest_driver_prices(cfg: dict[str, Any], csv_text: str) -> IngestResult:
     df = _parse_csv_text(csv_text)
     if df is None or df.empty:
         return IngestResult(ok=False, errors=["Driver prices CSV is empty"])
+
+    df = _filter_by_type(df, "driver")
+    if df.empty:
+        return IngestResult(ok=True, rows=0, updated_config=cfg, warnings=["No driver rows found in CSV"])
 
     code_col = _find_col(df, _DRIVER_CODE_COLS)
     price_col = _find_col(df, _PRICE_COLS)
@@ -93,6 +112,10 @@ def ingest_constructor_prices(cfg: dict[str, Any], csv_text: str) -> IngestResul
     df = _parse_csv_text(csv_text)
     if df is None or df.empty:
         return IngestResult(ok=False, errors=["Constructor prices CSV is empty"])
+
+    df = _filter_by_type(df, "constructor")
+    if df.empty:
+        return IngestResult(ok=True, rows=0, updated_config=cfg, warnings=["No constructor rows found in CSV"])
 
     code_col = _find_col(df, _CTOR_CODE_COLS)
     price_col = _find_col(df, _PRICE_COLS)
