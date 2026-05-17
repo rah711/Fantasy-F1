@@ -18,7 +18,8 @@ import pandas as pd
 import requests
 from ratelimit import limits, sleep_and_retry
 
-from src.data.schema import normalise_circuit, normalise_driver_number
+import json
+from src.data.schema import normalise_circuit, normalise_constructor, normalise_driver_number
 from src.utils.logging import get_logger
 
 log = get_logger(__name__)
@@ -32,7 +33,22 @@ CALLS_PER_SECOND = 3
 @sleep_and_retry
 @limits(calls=CALLS_PER_SECOND, period=ONE_SECOND)
 def _rate_limited_get(session: requests.Session, url: str) -> requests.Response:
-    return session.get(url, timeout=30)
+    # Retry-on-429 with exponential backoff. OpenF1 can throttle harder than
+    # our configured rate limit, especially during bulk fetches.
+    delay = 2.0
+    for attempt in range(5):
+        resp = session.get(url, timeout=30)
+        if resp.status_code != 429:
+            return resp
+        retry_after = resp.headers.get("Retry-After")
+        try:
+            sleep_for = float(retry_after) if retry_after else delay
+        except ValueError:
+            sleep_for = delay
+        log.info("OpenF1 429 — sleeping %.1fs before retry %d/5", sleep_for, attempt + 1)
+        time.sleep(min(sleep_for, 30.0))
+        delay = min(delay * 2, 30.0)
+    return resp
 
 
 def _get_session_params(config: dict[str, Any] | None) -> tuple[str, int]:
@@ -215,3 +231,218 @@ def enrich_sessions_with_openf1(
                 out.loc[mask, "overtakes"] = count
         time.sleep(1.0 / CALLS_PER_SECOND)
     return out
+
+
+# ============================================================
+# 2026+ base sessions: pull race/quali/sprint results from OpenF1
+# (since Kaggle is static and TracingInsights ends at 2025)
+# ============================================================
+
+_BASE_SESSIONS_CACHE = Path("data/cache/openf1_sessions")
+
+
+def _cache_read(path: Path) -> Any | None:
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return None
+
+
+def _cache_write(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data))
+
+
+def fetch_meetings(
+    year: int,
+    config: dict[str, Any] | None = None,
+    cache_dir: str | Path | None = None,
+) -> pd.DataFrame:
+    """Race meetings for the year, sorted by date with `round` numbers assigned.
+
+    Skips pre-season testing meetings. Returns DataFrame with meeting_key,
+    round, location, circuit_short_name, country_code, date_start.
+    """
+    cdir = Path(cache_dir) if cache_dir else _BASE_SESSIONS_CACHE / str(year)
+    cache_path = cdir / "meetings.json"
+    data = _cache_read(cache_path)
+    if data is None:
+        base, _ = _get_session_params(config)
+        sess = requests.Session()
+        url = f"{base}/meetings?year={year}"
+        try:
+            r = _rate_limited_get(sess, url)
+            r.raise_for_status()
+            data = r.json()
+        except Exception as e:
+            log.warning("OpenF1 meetings fetch failed for %s: %s", year, e)
+            return pd.DataFrame()
+        if data:
+            _cache_write(cache_path, data)
+    if not data:
+        return pd.DataFrame()
+    df = pd.DataFrame(data)
+    if "meeting_name" in df.columns:
+        mask = ~df["meeting_name"].astype(str).str.contains("Testing|Pre-Season", case=False, na=False)
+        df = df[mask].copy()
+    if df.empty:
+        return df
+    df = df.sort_values("date_start").reset_index(drop=True)
+    df["round"] = df.index + 1
+    return df
+
+
+def _fetch_session_result(session_key: int, cache_dir: Path, config: dict[str, Any] | None = None) -> list:
+    cache_path = cache_dir / f"session_result_{session_key}.json"
+    cached = _cache_read(cache_path)
+    if cached is not None:
+        return cached
+    base, _ = _get_session_params(config)
+    sess = requests.Session()
+    try:
+        r = _rate_limited_get(sess, f"{base}/session_result?session_key={session_key}")
+        r.raise_for_status()
+        data = r.json() or []
+    except Exception as e:
+        log.warning("OpenF1 session_result fetch failed for %s: %s", session_key, e)
+        return []
+    if data:
+        _cache_write(cache_path, data)
+    return data
+
+
+def _fetch_drivers(session_key: int, cache_dir: Path, config: dict[str, Any] | None = None) -> list:
+    cache_path = cache_dir / f"drivers_{session_key}.json"
+    cached = _cache_read(cache_path)
+    if cached is not None:
+        return cached
+    base, _ = _get_session_params(config)
+    sess = requests.Session()
+    try:
+        r = _rate_limited_get(sess, f"{base}/drivers?session_key={session_key}")
+        r.raise_for_status()
+        data = r.json() or []
+    except Exception as e:
+        log.warning("OpenF1 drivers fetch failed for %s: %s", session_key, e)
+        return []
+    if data:
+        _cache_write(cache_path, data)
+    return data
+
+
+def load_openf1_race_sessions(
+    year: int,
+    config: dict[str, Any] | None = None,
+    cache_dir: str | Path | None = None,
+) -> pd.DataFrame:
+    """Pull race + qualifying + sprint session results from OpenF1 for `year`.
+
+    Returns base sessions DataFrame compatible with the pipeline's expected
+    schema: year, round, circuit_id, session_type, driver_code, constructor_id,
+    finish_position, status, points_official, finish_time_ms.
+
+    Disk-cached so subsequent runs are nearly instant (race results are
+    immutable once a session is over).
+    """
+    cdir = Path(cache_dir) if cache_dir else _BASE_SESSIONS_CACHE / str(year)
+    cdir.mkdir(parents=True, exist_ok=True)
+
+    meetings = fetch_meetings(year, config=config, cache_dir=cdir)
+    if meetings.empty:
+        log.info("No OpenF1 meetings for year %d", year)
+        return pd.DataFrame()
+
+    sessions_df = fetch_sessions(year, config=config)
+    if sessions_df.empty:
+        log.info("No OpenF1 sessions for year %d", year)
+        return pd.DataFrame()
+
+    name_map = {"race": "Race", "qualifying": "Qualifying", "sprint": "Sprint"}
+    rows: list[dict[str, Any]] = []
+
+    for _, meeting in meetings.iterrows():
+        mk = int(meeting["meeting_key"])
+        rnd = int(meeting["round"])
+        location = str(meeting.get("location") or "")
+        circuit_short = str(meeting.get("circuit_short_name") or "")
+        try:
+            circuit_id = normalise_circuit(location)
+        except KeyError:
+            try:
+                circuit_id = normalise_circuit(circuit_short)
+            except KeyError:
+                log.warning("Couldn't normalize circuit for meeting %s (%s / %s)", mk, location, circuit_short)
+                circuit_id = location.lower().replace(" ", "_") or f"unknown_{mk}"
+
+        meeting_sessions = sessions_df[sessions_df["meeting_key"] == mk]
+        if meeting_sessions.empty:
+            continue
+
+        for stype_canon, stype_name in name_map.items():
+            sub = meeting_sessions[meeting_sessions["session_name"] == stype_name]
+            if sub.empty:
+                continue
+            session_key = int(sub.iloc[0]["session_key"])
+
+            results = _fetch_session_result(session_key, cdir, config=config)
+            drivers = _fetch_drivers(session_key, cdir, config=config)
+            if not results or not drivers:
+                continue
+
+            d_map = {int(d["driver_number"]): d for d in drivers if d.get("driver_number") is not None}
+
+            for r in results:
+                dnum = r.get("driver_number")
+                if dnum is None:
+                    continue
+                drv = d_map.get(int(dnum))
+                if not drv:
+                    continue
+
+                team_raw = drv.get("team_name") or ""
+                try:
+                    constructor_id = normalise_constructor(team_raw)
+                except KeyError:
+                    log.warning("Unknown team for meeting %s: %s — using raw fallback", mk, team_raw)
+                    constructor_id = team_raw.lower().replace(" ", "_") if team_raw else None
+
+                if r.get("dsq"):
+                    status = "DSQ"
+                elif r.get("dnf"):
+                    status = "DNF"
+                elif r.get("dns"):
+                    status = "DNS"
+                else:
+                    status = "Finished"
+
+                duration = r.get("duration")
+                try:
+                    finish_time_ms = int(float(duration) * 1000) if duration is not None else None
+                except (TypeError, ValueError):
+                    finish_time_ms = None
+
+                pos = r.get("position")
+                try:
+                    finish_position = int(pos) if pos is not None else None
+                except (TypeError, ValueError):
+                    finish_position = None
+
+                rows.append({
+                    "year": int(year),
+                    "round": rnd,
+                    "circuit_id": circuit_id,
+                    "session_type": stype_canon,
+                    "driver_code": drv.get("name_acronym"),
+                    "constructor_id": constructor_id,
+                    "driver_number": int(dnum),
+                    "finish_position": finish_position,
+                    "status": status,
+                    "points_official": r.get("points"),
+                    "finish_time_ms": finish_time_ms,
+                    "number_of_laps": r.get("number_of_laps"),
+                })
+
+    log.info("OpenF1 race sessions for %d: %d rows across %d meetings", year, len(rows), len(meetings))
+    return pd.DataFrame(rows)

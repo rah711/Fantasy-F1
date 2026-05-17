@@ -457,6 +457,11 @@ CIRCUIT_NAME_TO_ID: dict[str, str] = {
     "abu dhabi": "yas_marina",
     "yas marina circuit": "yas_marina",
     "abu dhabi grand prix": "yas_marina",
+    # Madrid (new for 2026)
+    "madrid": "madrid",
+    "madring": "madrid",
+    "spain": "barcelona",  # backup — usually Barcelona, but 2026 has Madrid replacing
+    "spanish grand prix": "madrid",
 }
 
 # Round number to circuit ID mapping for 2026 season

@@ -16,6 +16,7 @@ import pandas as pd
 from src.config import load_config
 from src.data.kaggle_loader import load_kaggle_sessions
 from src.data.openf1_enrichment import enrich_sessions_batch
+from src.data.openf1_loader import load_openf1_race_sessions
 from src.data.scoring import compute_fantasy_points
 from src.data.tracing_archive_loader import load_tracing_archive_sessions
 from src.data.tracing_loader import load_tracing_dotd, load_tracing_pitstops
@@ -97,8 +98,28 @@ def run_pipeline(
                 len(base),
             )
 
+    # 1c. Live-source 2026+ base rows from OpenF1 (Kaggle is static; Tracing
+    # archive ends at the previous season). Without this step, the current
+    # season has no base rows and the model never learns from in-season data.
+    current_year = int(config.get("season", {}).get("year", 2026))
+    live_years = []
+    if year_filter is None:
+        live_years = [current_year]
+    elif year_filter is not None and int(year_filter) >= current_year:
+        live_years = [int(year_filter)]
+    for live_year in live_years:
+        if live_year <= archive_end_year:
+            continue  # archive already covered this year
+        log.info("Pulling OpenF1 base sessions for live year %d", live_year)
+        live_df = load_openf1_race_sessions(live_year, config=config)
+        if not live_df.empty:
+            base = pd.concat([base, live_df], ignore_index=True)
+            dedupe_keys = ["year", "round", "session_type", "driver_code"]
+            base = base.drop_duplicates(subset=dedupe_keys, keep="last")
+            log.info("Added %d OpenF1 base rows for %d (total %d)", len(live_df), live_year, len(base))
+
     n_base = len(base)
-    log.info("Base rows after archive merge: %d", n_base)
+    log.info("Base rows after archive + live merge: %d", n_base)
 
     # 2. Left-join DOTD (TracingInsights)
     dotd = load_tracing_dotd(tracing_dir, year=year_filter, config=config)
@@ -143,7 +164,8 @@ def run_pipeline(
 
     # 4. OpenF1 enrichment: backfill grid, DNF status, overtakes, weather, pit stops for 2023+
     openf1_cache = config.get("data", {}).get("openf1_cache_dir", "data/cache/openf1_enrichment")
-    openf1_years = [y for y in range(2023, archive_end_year + 1) if y <= 2025]
+    openf1_end = max(archive_end_year, current_year)
+    openf1_years = list(range(2023, openf1_end + 1))
     if openf1_years:
         log.info("Running OpenF1 enrichment for years %s", openf1_years)
         base = enrich_sessions_batch(base, config=config, cache_dir=openf1_cache, years=openf1_years)
