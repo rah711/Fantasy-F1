@@ -1,4 +1,18 @@
 round,team_key,asset,name,kind,points
+1,model,ferrari,Ferrari,constructor,69.0
+1,model,red_bull,Red Bull Racing,constructor,42.0
+1,model,BOR,Bortoleto,driver,13.0
+1,model,LAW,Lawson,driver,10.0
+1,model,PER,Perez,driver,4.0
+1,model,SAI,Sainz,driver,9.0
+1,model,STR,Stroll,driver,-23.0
+2,model,ferrari,Ferrari,constructor,119.0
+2,model,racing_bulls,Racing Bulls,constructor,50.0
+2,model,BOR,Bortoleto,driver,-14.0
+2,model,LAW,Lawson,driver,35.0
+2,model,PER,Perez,driver,20.0
+2,model,RUS,Russell,driver,90.0
+2,model,SAI,Sainz,driver,28.0
 3,model,ferrari,Ferrari,constructor,75.0
 3,model,racing_bulls,Racing Bulls,constructor,18.0
 3,model,BEA,Bearman,driver,-14.0
