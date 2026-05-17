@@ -16,7 +16,7 @@ TEAM_COLORS: dict[str, str] = {
     "ferrari": "#DC0000",
     "mclaren": "#FF8000",
     "aston_martin": "#229971",
-    "alpine": "#0093CC",
+    "alpine": "#FF87BC",   # BWT Alpine pink
     "williams": "#1868DB",
     "racing_bulls": "#6692FF",
     "audi": "#52E252",
@@ -24,13 +24,29 @@ TEAM_COLORS: dict[str, str] = {
     "kick_sauber": "#52E252",
     "alpha_tauri": "#6692FF",
     "alfa_romeo": "#900000",
+    # Cadillac is handled specially in team_color() below — needs different
+    # values for dark vs light app theme so it stays readable on both.
+    "cadillac": "#FFFFFF",
 }
+
+
+def _current_theme_type() -> str:
+    """Return 'dark' or 'light' for the current Streamlit theme. Defaults to 'dark'."""
+    try:
+        return str(st.context.theme.type or "dark")
+    except Exception:
+        return "dark"
 
 
 def team_color(team_id: str | None, fallback: str = F1_LIGHT_GREY) -> str:
     if not team_id:
         return fallback
-    return TEAM_COLORS.get(str(team_id).lower(), fallback)
+    cid = str(team_id).lower()
+    if cid == "cadillac":
+        # White on the F1-dark theme, dark grey on light. Same livery — just
+        # whichever one stands out against the current background.
+        return "#FFFFFF" if _current_theme_type() == "dark" else "#333333"
+    return TEAM_COLORS.get(cid, fallback)
 
 
 def driver_palette(driver_team_pairs: list[tuple[str, str]]) -> dict[str, str]:

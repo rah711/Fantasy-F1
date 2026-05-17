@@ -70,8 +70,8 @@ else:
 # ---------------------------------------------------------------------------
 st.header("Driver tenure")
 st.caption(
-    "GitHub-contribution-style grid. Filled cells = on the model team that round "
-    "(colored by their team). Dim cells = not on the team. Dim-red cells = round cancelled."
+    "Filled cells = on the model team that round (colored by their team). "
+    "Dim cells = not on the team. Dim-red cells = round cancelled."
 )
 ownership = driver_ownership_long(PROJECT_ROOT)
 prices_drivers = cfg.get("prices", {}).get("drivers", {})
