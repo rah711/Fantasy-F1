@@ -22,10 +22,13 @@ data/cache/
 .vscode/
 .idea/
 
-# Data files (too large for git — download via scripts)
-data/raw/kaggle/*.csv
-data/raw/kaggle/*.zip
+# Data files
+# Raw Kaggle CSVs + tracing archive are small (~360KB) and committed so the
+# scheduled retrain on GitHub Actions can rebuild sessions.parquet from
+# scratch. Tracing insights per-year CSVs (DOTD, pitstops) stay ignored —
+# usually empty or supplied per workflow.
 data/raw/tracing_insights/**/*.csv
+data/raw/kaggle/*.zip
 
 # Processed data (regenerated from raw)
 data/processed/*.parquet
@@ -52,8 +55,8 @@ data/processed/models/backtest/*
 # OpenF1 enrichment cache
 data/cache/
 
-# Raw archive data (downloaded by scripts)
-data/raw/tracing_archive/
+# (data/raw/tracing_archive/ — committed; small parquets the pipeline uses
+# as the historical bulk source. Not regenerated, just versioned.)
 
 # Notebook caches
 notebooks/.cache/

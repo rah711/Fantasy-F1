@@ -1,0 +1,70 @@
+name: Retrain model
+
+# Runs the full data pipeline + feature build + model train, then commits the
+# updated artifacts back to main. Cloud (Streamlit) auto-redeploys on push.
+#
+# Two triggers:
+#   - Manual: GitHub → Actions tab → "Retrain model" → "Run workflow"
+#   - Scheduled: every Tuesday 08:00 UTC (after a Sunday race, with buffer
+#     for OpenF1 data to settle).
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * 2'
+
+permissions:
+  contents: write
+
+concurrency:
+  # Don't run two retrains at once.
+  group: retrain
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Restore data caches (OpenF1 sessions + enrichment + FastF1)
+        uses: actions/cache@v4
+        with:
+          path: data/cache
+          # Date-bucketed key so each run saves a new layer; restores latest match.
+          key: data-cache-${{ github.run_id }}
+          restore-keys: |
+            data-cache-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Retrain (pipeline + features + train)
+        run: PYTHONPATH=. python scripts/retrain.py --no-walk-forward
+
+      - name: Commit updated artifacts if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            data/processed/features.parquet \
+            data/processed/circuit_stats.json \
+            data/processed/models/fantasy_model.joblib \
+            data/processed/models/feature_names.txt \
+            data/processed/models/backtest/walk_forward_2025_predictions.parquet
+          if git diff --staged --quiet; then
+            echo "::notice::No artifact changes — model already up to date."
+          else
+            git commit -m "chore(model): scheduled retrain $(date -u +'%Y-%m-%d')"
+            git push
+            echo "::notice::Retrain committed — Streamlit Cloud will auto-redeploy."
+          fi
