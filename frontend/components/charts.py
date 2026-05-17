@@ -9,7 +9,7 @@ from typing import Any
 import altair as alt
 import pandas as pd
 
-from frontend.components.theme import F1_RED
+from frontend.components.theme import F1_RED, team_color
 from src.ui_services import calendar_rounds, format_round_label, is_cancelled
 
 
@@ -214,3 +214,56 @@ def delta_vs_human_chart(cum_df: pd.DataFrame, calendar: dict[Any, Any]) -> alt.
     if overlays:
         chart = chart + overlays[0] + overlays[1]
     return chart.properties(height=380)
+
+
+def driver_tenure_gantt(
+    ownership_df: pd.DataFrame,
+    calendar: dict[Any, Any],
+    drivers_cfg: dict[str, Any] | None = None,
+) -> alt.Chart | None:
+    """Per-driver Gantt across rounds — one row per driver, a colored cell per round
+    they were on the team. Cells colored by the driver's current team.
+    """
+    if ownership_df.empty:
+        return None
+
+    df = ownership_df.copy()
+    df["round"] = df["round"].astype(int)
+    df["race_label"] = df["round"].apply(lambda r: format_round_label(calendar, r, short=True))
+
+    if drivers_cfg:
+        df["team_id"] = df["driver"].apply(
+            lambda d: (drivers_cfg.get(d, {}) or {}).get("team", "")
+        )
+        df["team_color"] = df["team_id"].apply(lambda t: team_color(t) if t else "#888")
+    else:
+        df["team_color"] = "#888"
+
+    # Sort drivers by total rounds owned (longest tenure at top), then alpha tiebreak.
+    counts = df.groupby("driver").size().rename("count").reset_index()
+    driver_order = (
+        counts.sort_values(["count", "driver"], ascending=[False, True])["driver"].tolist()
+    )
+
+    label_expr = _x_axis_labels_js(calendar)
+
+    cells = (
+        alt.Chart(df)
+        .mark_rect(stroke="#15151E", strokeWidth=1, cornerRadius=2)
+        .encode(
+            x=alt.X(
+                "round:O", title="Round",
+                sort=alt.EncodingSortField("round"),
+                axis=alt.Axis(labelExpr=label_expr, labelAngle=-30, labelPadding=6),
+            ),
+            y=alt.Y("driver:N", title=None, sort=driver_order),
+            color=alt.Color("team_color:N", scale=None, legend=None),
+            tooltip=[
+                alt.Tooltip("driver:N", title="Driver"),
+                alt.Tooltip("race_label:N", title="Race"),
+                alt.Tooltip("team_id:N", title="Team") if drivers_cfg else alt.Tooltip("round:O"),
+            ],
+        )
+        .properties(height=alt.Step(28))
+    )
+    return cells

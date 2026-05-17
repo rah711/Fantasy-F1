@@ -2,6 +2,7 @@ from frontend.components.charts import (
     TEAM_VIZ_COLORS,
     cumulative_chart,
     delta_vs_human_chart,
+    driver_tenure_gantt,
     per_round_chart,
 )
 from frontend.components.common import (
@@ -44,4 +45,5 @@ __all__ = [
     "cumulative_chart",
     "per_round_chart",
     "delta_vs_human_chart",
+    "driver_tenure_gantt",
 ]

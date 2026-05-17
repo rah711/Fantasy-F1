@@ -243,6 +243,27 @@ def append_competitor_score(
     return p
 
 
+def driver_ownership_long(project_root: str | Path) -> pd.DataFrame:
+    """Long-form: one row per (driver, round) the driver was on the model team.
+
+    Powers the driver-tenure Gantt chart on the History page.
+    """
+    hist = load_history(project_root)
+    if hist.empty:
+        return pd.DataFrame(columns=["driver", "round"])
+    rows: list[dict[str, Any]] = []
+    for _, r in hist.iterrows():
+        rnd_val = r.get("round")
+        if pd.isna(rnd_val):
+            continue
+        rnd = int(rnd_val)
+        for d in str(r.get("drivers", "")).split(","):
+            d = d.strip()
+            if d:
+                rows.append({"driver": d, "round": rnd})
+    return pd.DataFrame(rows)
+
+
 def driver_tenure(project_root: str | Path) -> pd.DataFrame:
     """How many rounds each driver has been on the team."""
     hist = load_history(project_root)

@@ -10,10 +10,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import inject_theme
+from frontend.components import driver_tenure_gantt, inject_theme
 from frontend.state import get_working_config, require_auth
 from src.ui_services import (
     calendar_rounds,
+    driver_ownership_long,
     driver_tenure,
     format_round_label,
     is_cancelled,
@@ -68,14 +69,22 @@ else:
 # Driver tenure
 # ---------------------------------------------------------------------------
 st.header("Driver tenure")
-st.caption("Which drivers have spent the most time on the model team.")
-tenure = driver_tenure(PROJECT_ROOT)
-if tenure.empty:
+st.caption("Each row = one driver. Each cell = a round they were on the model team, colored by their team.")
+ownership = driver_ownership_long(PROJECT_ROOT)
+# Filter out cancelled rounds so the Gantt doesn't show empty cells for them
+if not ownership.empty and cancelled_rounds:
+    ownership = ownership[~ownership["round"].astype(int).isin(cancelled_rounds)]
+prices_drivers = cfg.get("prices", {}).get("drivers", {})
+gantt = driver_tenure_gantt(ownership, calendar, drivers_cfg=prices_drivers)
+if gantt is None:
     st.info("No tenure data yet.")
 else:
-    show = tenure.copy()
-    show.columns = ["Driver", "Rounds owned", "First round", "Last round"]
-    st.dataframe(show, use_container_width=True, hide_index=True)
+    st.altair_chart(gantt, use_container_width=True)
+    with st.expander("Show as table"):
+        tenure = driver_tenure(PROJECT_ROOT)
+        show = tenure.copy()
+        show.columns = ["Driver", "Rounds owned", "First round", "Last round"]
+        st.dataframe(show, use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------------------
