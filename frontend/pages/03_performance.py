@@ -10,7 +10,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import cumulative_chart, delta_vs_human_chart, inject_theme, per_round_chart
+from frontend.components import (
+    cumulative_chart,
+    delta_vs_human_chart,
+    inject_theme,
+    per_round_chart,
+    prediction_accuracy_chart,
+    prediction_vs_actual_chart,
+)
 from frontend.state import get_working_config, require_auth
 from src.ui_services import (
     calendar_rounds,
@@ -19,6 +26,8 @@ from src.ui_services import (
     format_round_label,
     is_cancelled,
     load_history,
+    prediction_accuracy_over_time,
+    prediction_vs_actual,
 )
 
 
@@ -138,6 +147,53 @@ if constructors:
             "Price (£M)": meta.get("price", ""),
         })
     st.dataframe(pd.DataFrame(crows), use_container_width=True, hide_index=True)
+
+
+# ---------------------------------------------------------------------------
+# Prediction vs actual
+# ---------------------------------------------------------------------------
+st.markdown("---")
+st.header("Prediction vs actual")
+st.caption(
+    "How close the model's predictions came to actual fantasy points. "
+    "Note: predictions for past rounds (R1-R6) were generated post-hoc with the "
+    "current model, so they're slightly biased by data the model has since seen. "
+    "From R7 Canada onward, predictions are the ones the wizard made at race-week time."
+)
+
+acc = prediction_accuracy_over_time(PROJECT_ROOT)
+if acc.empty:
+    st.info("No prediction data yet — predictions populate after each race week's wizard run.")
+else:
+    all_rounds = sorted(int(r) for r in acc["round"].unique())
+    selected_rounds = st.multiselect(
+        "Rounds to inspect",
+        options=all_rounds,
+        default=all_rounds,
+        format_func=lambda r: format_round_label(calendar, int(r), short=True),
+    )
+    if not selected_rounds:
+        st.caption("Pick at least one round to see charts.")
+    else:
+        st.subheader("Accuracy over time")
+        plot_df = acc[acc["round"].astype(int).isin(selected_rounds)]
+        st.altair_chart(prediction_accuracy_chart(plot_df, calendar), use_container_width=True)
+        st.caption("Lower MAE = predictions closer to reality. Watch this trend downward as the model learns from 2026 results.")
+
+        st.subheader("Per-round detail")
+        for rnd in sorted(selected_rounds):
+            with st.expander(f"{format_round_label(calendar, rnd, short=True)} — predicted vs actual"):
+                rvs = prediction_vs_actual(PROJECT_ROOT, rnd)
+                if rvs.empty:
+                    st.caption("No data for this round.")
+                    continue
+                st.altair_chart(prediction_vs_actual_chart(rvs, rnd), use_container_width=True)
+                show = rvs[["driver_code", "constructor_id", "predicted", "actual", "error"]].copy()
+                show.columns = ["Driver", "Team", "Predicted", "Actual", "Error"]
+                show["Predicted"] = show["Predicted"].round(1)
+                show["Actual"] = show["Actual"].round(1)
+                show["Error"] = show["Error"].round(1)
+                st.dataframe(show.sort_values("Actual", ascending=False), use_container_width=True, hide_index=True)
 
 
 # ---------------------------------------------------------------------------

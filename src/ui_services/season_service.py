@@ -243,6 +243,84 @@ def append_competitor_score(
     return p
 
 
+def predictions_dir(project_root: str | Path) -> Path:
+    return Path(project_root) / "data" / "fantasy" / "predictions"
+
+
+def load_round_predictions(project_root: str | Path, round_number: int) -> pd.DataFrame:
+    """Load saved predictions for one round (year+round+driver+constructor+y_pred)."""
+    p = predictions_dir(project_root) / f"round_{int(round_number):02d}_predictions.csv"
+    if not p.exists():
+        return pd.DataFrame()
+    return pd.read_csv(p)
+
+
+def _features_actuals(project_root: str | Path) -> pd.DataFrame:
+    """Lazy-loaded features.parquet race rows (only the columns we need)."""
+    p = Path(project_root) / "data" / "processed" / "features.parquet"
+    if not p.exists():
+        return pd.DataFrame()
+    df = pd.read_parquet(p, columns=["year", "round", "driver_code", "constructor_id", "session_type", "fantasy_points_driver"])
+    return df[df["session_type"] == "race"]
+
+
+def prediction_vs_actual(
+    project_root: str | Path,
+    round_number: int,
+    features_df: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Join saved predictions with features.parquet actuals for one round.
+
+    Returns columns: round, driver_code, constructor_id, predicted, actual,
+    error (actual - predicted), abs_error.
+    """
+    pred = load_round_predictions(project_root, round_number)
+    if pred.empty:
+        return pd.DataFrame()
+    year = int(pred["year"].iloc[0])
+    feats = features_df if features_df is not None else _features_actuals(project_root)
+    if feats.empty:
+        actuals = pd.DataFrame(columns=["driver_code", "constructor_id", "actual"])
+    else:
+        actuals = feats[(feats["year"] == year) & (feats["round"] == int(round_number))][
+            ["driver_code", "constructor_id", "fantasy_points_driver"]
+        ].rename(columns={"fantasy_points_driver": "actual"})
+    df = pred.rename(columns={"y_pred": "predicted"}).merge(
+        actuals, on=["driver_code", "constructor_id"], how="left"
+    )
+    df["actual"] = pd.to_numeric(df["actual"], errors="coerce").fillna(0.0)
+    df["predicted"] = pd.to_numeric(df["predicted"], errors="coerce").fillna(0.0)
+    df["error"] = df["actual"] - df["predicted"]
+    df["abs_error"] = df["error"].abs()
+    return df
+
+
+def prediction_accuracy_over_time(project_root: str | Path) -> pd.DataFrame:
+    """Aggregate prediction accuracy per round across all drivers.
+
+    Returns columns: round, mae, n_drivers.
+    """
+    pdir = predictions_dir(project_root)
+    if not pdir.exists():
+        return pd.DataFrame(columns=["round", "mae", "n_drivers"])
+    feats = _features_actuals(project_root)
+    rows: list[dict[str, Any]] = []
+    for p in sorted(pdir.glob("round_*_predictions.csv")):
+        try:
+            rnd = int(p.stem.split("_")[1])
+        except (IndexError, ValueError):
+            continue
+        df = prediction_vs_actual(project_root, rnd, features_df=feats)
+        if df.empty:
+            continue
+        rows.append({
+            "round": rnd,
+            "mae": float(df["abs_error"].mean()),
+            "n_drivers": int(len(df)),
+        })
+    return pd.DataFrame(rows).sort_values("round").reset_index(drop=True) if rows else pd.DataFrame(columns=["round", "mae", "n_drivers"])
+
+
 def driver_ownership_long(project_root: str | Path) -> pd.DataFrame:
     """Long-form: one row per (driver, round) the driver was on the model team.
 

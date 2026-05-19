@@ -4,6 +4,8 @@ from frontend.components.charts import (
     delta_vs_human_chart,
     driver_tenure_gantt,
     per_round_chart,
+    prediction_accuracy_chart,
+    prediction_vs_actual_chart,
 )
 from frontend.components.common import (
     file_download_button,
@@ -46,4 +48,6 @@ __all__ = [
     "per_round_chart",
     "delta_vs_human_chart",
     "driver_tenure_gantt",
+    "prediction_accuracy_chart",
+    "prediction_vs_actual_chart",
 ]

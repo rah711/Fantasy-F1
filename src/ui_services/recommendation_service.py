@@ -174,6 +174,15 @@ def recommend_round(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(output_path, index=False)
 
+    # Also archive a slim, git-friendly CSV for the visitor "prediction vs actual"
+    # view. data/fantasy/predictions/ is committed to the repo.
+    slim_dir = Path("data") / "fantasy" / "predictions"
+    slim_dir.mkdir(parents=True, exist_ok=True)
+    slim_path = slim_dir / f"round_{int(round_number):02d}_predictions.csv"
+    slim = out[["year", "round", "driver_code", "constructor_id", "y_pred"]].copy()
+    slim = slim.sort_values("y_pred", ascending=False).reset_index(drop=True)
+    slim.to_csv(slim_path, index=False)
+
     opt = TeamOptimizer(cfg)
     # Initial-team computation uses the full fantasy budget cap (£100M by default).
     # Note: cfg.current_team.budget is the *bank remaining*, not the cap — using it

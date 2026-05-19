@@ -295,3 +295,60 @@ def driver_tenure_gantt(
         )
         .properties(height=alt.Step(22), width=alt.Step(24))
     )
+
+
+def prediction_vs_actual_chart(df: pd.DataFrame, round_number: int) -> alt.Chart:
+    """Paired bars per driver: predicted (grey) vs actual (F1 red)."""
+    long = pd.concat([
+        df[["driver_code", "predicted"]].rename(columns={"predicted": "value"}).assign(metric="Predicted"),
+        df[["driver_code", "actual"]].rename(columns={"actual": "value"}).assign(metric="Actual"),
+    ], ignore_index=True)
+    driver_order = df.sort_values("actual", ascending=False)["driver_code"].tolist()
+    return (
+        alt.Chart(long)
+        .mark_bar()
+        .encode(
+            x=alt.X("driver_code:N", title="Driver", sort=driver_order, axis=alt.Axis(labelAngle=-30)),
+            xOffset=alt.XOffset("metric:N"),
+            y=alt.Y("value:Q", title="Fantasy points"),
+            color=alt.Color(
+                "metric:N",
+                scale=alt.Scale(domain=["Predicted", "Actual"], range=["#888888", F1_RED]),
+                legend=alt.Legend(title=None, orient="top"),
+            ),
+            tooltip=[
+                alt.Tooltip("driver_code:N", title="Driver"),
+                alt.Tooltip("metric:N"),
+                alt.Tooltip("value:Q", title="Points", format=".1f"),
+            ],
+        )
+        .properties(height=340, title=f"R{round_number} — predicted vs actual")
+    )
+
+
+def prediction_accuracy_chart(acc_df: pd.DataFrame, calendar: dict[Any, Any]) -> alt.Chart:
+    """Line chart of MAE per round (lower = better)."""
+    df = acc_df.copy()
+    df["round"] = df["round"].astype(int)
+    df["race_label"] = df["round"].apply(lambda r: format_round_label(calendar, r, short=True))
+    label_expr = _x_axis_labels_js(calendar)
+    return (
+        alt.Chart(df)
+        .mark_line(point=alt.OverlayMarkDef(size=120, filled=True), strokeWidth=3, color=F1_RED)
+        .encode(
+            x=alt.X(
+                "round:Q", title="Round",
+                axis=alt.Axis(
+                    labelExpr=label_expr, labelAngle=-30, tickMinStep=1,
+                    values=calendar_rounds(calendar, include_cancelled=True),
+                ),
+            ),
+            y=alt.Y("mae:Q", title="Mean absolute error (pts / driver)"),
+            tooltip=[
+                alt.Tooltip("race_label:N", title="Race"),
+                alt.Tooltip("mae:Q", title="MAE", format=".1f"),
+                alt.Tooltip("n_drivers:Q", title="# drivers"),
+            ],
+        )
+        .properties(height=300)
+    )

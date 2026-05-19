@@ -46,6 +46,9 @@ from src.ui_services.season_service import (
     latest_round_in_history,
     load_breakdowns,
     load_competitor_history,
+    load_round_predictions,
+    prediction_accuracy_over_time,
+    prediction_vs_actual,
     transfer_log,
 )
 from src.ui_services.weather_service import WeatherParse, c_to_f, f_to_c, parse_weather_description
@@ -93,6 +96,9 @@ __all__ = [
     "latest_round_in_history",
     "load_breakdowns",
     "load_competitor_history",
+    "load_round_predictions",
+    "prediction_accuracy_over_time",
+    "prediction_vs_actual",
     "transfer_log",
     "calendar_rounds",
     "format_round_label",
