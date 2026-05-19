@@ -38,7 +38,14 @@ def load_history(project_root: str | Path) -> pd.DataFrame:
     p = history_path(project_root)
     if not p.exists():
         return pd.DataFrame(columns=HISTORY_COLUMNS)
-    return pd.read_csv(p)
+    df = pd.read_csv(p)
+    # Empty cells parse as NaN; replace with "" for text columns so they
+    # don't render as the string "nan" downstream.
+    text_cols = ["drivers", "constructors", "drs_boost", "chips_used", "chip_details", "notes"]
+    for c in text_cols:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
+    return df
 
 
 def append_lockin(

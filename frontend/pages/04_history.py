@@ -55,6 +55,10 @@ else:
     show["Race"] = show["round"].astype(int).apply(lambda r: format_round_label(calendar, r, short=True))
     cols_avail = [c for c in ["Race", "drivers_in", "drivers_out", "constructors_in", "constructors_out", "drs_boost", "chips_used", "chip_details", "actual_points", "notes"] if c in show.columns]
     show = show[cols_avail]
+    # Empty/NaN string cells → em-dash so it doesn't read as "nan" or blank
+    for c in ["chips_used", "chip_details", "notes"]:
+        if c in show.columns:
+            show[c] = show[c].fillna("").astype(str).replace({"": "—", "nan": "—"})
     rename_map = {
         "drivers_in": "In (drivers)", "drivers_out": "Out (drivers)",
         "constructors_in": "In (constructors)", "constructors_out": "Out (constructors)",
