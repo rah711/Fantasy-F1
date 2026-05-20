@@ -27,10 +27,6 @@ def owner_password() -> str:
     return _secret("OWNER_PASSWORD", "")
 
 
-def visitor_password() -> str:
-    return _secret("VISITOR_PASSWORD", "")
-
-
 def init_session_state() -> None:
     st.session_state.setdefault("auth_role", None)
     st.session_state.setdefault("draft_cfg", None)
@@ -64,54 +60,40 @@ def is_owner() -> bool:
     return auth_role() == "owner"
 
 
-def is_visitor() -> bool:
-    return auth_role() == "visitor"
-
-
-def _password_to_role(password: str) -> str | None:
-    pw = password.strip()
-    if not pw:
-        return None
-    if owner_password() and pw == owner_password():
-        return "owner"
-    if visitor_password() and pw == visitor_password():
-        return "visitor"
-    return None
-
-
 def require_auth() -> None:
     init_session_state()
-    if auth_role() in {"owner", "visitor"}:
+    # Public-by-default app: drop all users into visitor mode.
+    if auth_role() not in {"owner", "visitor"}:
+        st.session_state["auth_role"] = "visitor"
+
+
+def owner_access_controls() -> None:
+    if is_owner():
+        if st.button("Switch to visitor view", key="owner_switch_visitor", use_container_width=True):
+            st.session_state["auth_role"] = "visitor"
+            st.session_state["last_recommendation"] = None
+            st.session_state["last_transfer_recommendation"] = None
+            st.rerun()
         return
 
-    from frontend.components import inject_theme
-    inject_theme()
+    if not owner_password():
+        return
 
-    st.title("Fantasy F1 2026")
-    st.caption("Three teams. One season. Who wins — model, human, or AI?")
-    st.write("")
-    _, mid, _ = st.columns([1, 2, 1])
-    with mid:
-        with st.form("login_form"):
-            st.markdown("##### Enter access code")
-            password = st.text_input("Password", type="password", label_visibility="collapsed", placeholder="Password")
-            submit = st.form_submit_button("Enter the paddock", type="primary", use_container_width=True)
-        if submit:
-            role = _password_to_role(password)
-            if role is None:
-                st.error("Invalid password")
-            else:
-                st.session_state["auth_role"] = role
-                st.rerun()
-    st.stop()
-
-
-def logout_button() -> None:
-    if st.button("Logout"):
-        st.session_state["auth_role"] = None
-        st.session_state["last_recommendation"] = None
-        st.session_state["last_transfer_recommendation"] = None
-        st.rerun()
+    st.text_input(
+        "Owner password",
+        type="password",
+        key="owner_login_password",
+        label_visibility="collapsed",
+        placeholder="Owner password",
+    )
+    if st.button("Owner login", key="owner_login_btn", use_container_width=True):
+        if st.session_state.get("owner_login_password", "").strip() == owner_password():
+            st.session_state["auth_role"] = "owner"
+            st.session_state["owner_login_password"] = ""
+            st.rerun()
+        else:
+            st.session_state["owner_login_password"] = ""
+            st.error("Invalid owner password")
 
 
 def github_settings_from_secrets() -> dict[str, str]:
@@ -126,7 +108,6 @@ def github_settings_from_secrets() -> dict[str, str]:
 def secret_status() -> dict[str, bool]:
     return {
         "OWNER_PASSWORD": bool(owner_password()),
-        "VISITOR_PASSWORD": bool(visitor_password()),
         "GITHUB_TOKEN": bool(_secret("GITHUB_TOKEN", "")),
         "GITHUB_OWNER": bool(_secret("GITHUB_OWNER", "")),
         "GITHUB_REPO": bool(_secret("GITHUB_REPO", "")),

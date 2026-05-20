@@ -7,13 +7,12 @@ cd "/Users/sarah-macbookair-midnight/Claude Code/Fantasy F1 Data Sci Model"
 PYTHONPATH=. streamlit run frontend/app.py
 ```
 
-## Configure passwords/secrets locally
+## Configure secrets locally
 
 Create `.streamlit/secrets.toml`:
 
 ```toml
 OWNER_PASSWORD = "your-owner-password"
-VISITOR_PASSWORD = "your-visitor-password"
 
 GITHUB_TOKEN = "ghp_..."
 GITHUB_OWNER = "your-github-user-or-org"
@@ -23,8 +22,8 @@ GITHUB_BASE_BRANCH = "main"
 
 ## Access modes
 
-- **Owner password**: full access (edit draft config, create branch + PR)
-- **Visitor password**: read-only access (can view and run safe reads; no edits/PR)
+- **Default (no password)**: visitor read-only mode on public pages
+- **Owner password**: unlocks owner workflow pages + edit/PR actions from the sidebar button
 
 ## Streamlit Community Cloud
 

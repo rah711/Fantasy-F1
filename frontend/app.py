@@ -10,7 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from frontend.components import role_pill
-from frontend.state import auth_role, init_session_state, is_owner, logout_button, require_auth
+from frontend.state import auth_role, init_session_state, is_owner, owner_access_controls, require_auth
 
 
 st.set_page_config(
@@ -23,10 +23,33 @@ init_session_state()
 require_auth()
 
 # Persistent sidebar identity + logout (appears under nav on every page).
+st.markdown(
+    """
+    <style>
+    [data-testid="stSidebar"] .st-key-owner_login_password {
+        position: fixed;
+        bottom: 4.2rem;
+        left: 1rem;
+        right: 1rem;
+        z-index: 999;
+    }
+    [data-testid="stSidebar"] .st-key-owner_login_btn,
+    [data-testid="stSidebar"] .st-key-owner_switch_visitor {
+        position: fixed;
+        bottom: 1rem;
+        left: 1rem;
+        right: 1rem;
+        z-index: 1000;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 with st.sidebar:
     role_pill(auth_role() or "")
-    logout_button()
     st.divider()
+    owner_access_controls()
 
 
 # Pages available to everyone (visitors + owner)
