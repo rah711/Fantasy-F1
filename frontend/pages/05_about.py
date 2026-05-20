@@ -291,12 +291,12 @@ The wizard makes a single recommendation per weekend: "play X chip" or
 with st.expander("**Can I see the code / follow along myself?**"):
     st.markdown(
         """
-Everything's open source: **[github.com/rah711/Fantasy-F1](https://github.com/rah711/Fantasy-F1)**.
+Everything's open source: **[github.com/sarahkstay/Fantasy-F1](https://github.com/sarahkstay/Fantasy-F1)**.
 
 - Model code, feature engineering, training pipeline — all there.
 - Weekly retrain runs automatically via GitHub Actions every Tuesday
   morning UTC; the bot commits the new model + features back to the
-  repo. You can watch the [Actions tab](https://github.com/rah711/Fantasy-F1/actions)
+  repo. You can watch the [Actions tab](https://github.com/sarahkstay/Fantasy-F1/actions)
   to see when it last ran.
 - Each round's predictions are committed too (under
   `data/fantasy/predictions/`), so the "Prediction vs actual" view on
@@ -312,5 +312,5 @@ fantasy league, the README walks through it.
 st.markdown("---")
 st.caption(
     "Spotted something wrong? File an issue on "
-    "[GitHub](https://github.com/rah711/Fantasy-F1/issues)."
+    "[GitHub](https://github.com/sarahkstay/Fantasy-F1/issues)."
 )
