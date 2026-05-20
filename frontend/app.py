@@ -43,8 +43,8 @@ owner_pages = [
 ]
 
 if is_owner():
-    nav = st.navigation({"Public": public_pages, "Owner workflow": owner_pages})
+    nav = st.navigation(public_pages + owner_pages)
 else:
-    nav = st.navigation({"Public": public_pages})
+    nav = st.navigation(public_pages)
 
 nav.run()

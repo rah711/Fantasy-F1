@@ -22,19 +22,31 @@ st.caption("How this experiment works, what the model sees, and what to read int
 st.markdown("---")
 
 
-st.info(
+st.markdown(
     """
-**What is this?**
-
-Three Fantasy F1 teams running side-by-side across the full 2026 F1 season,
-each picking lineups using a **different decision-making approach**. The
-question is whether AI-assisted human play beats pure human judgement —
-and whether either beats pure AI.
-
-The leaderboard, charts, and per-round breakdowns on this site let you
-watch all three teams race each other through the season. New races land
-each weekend; this app updates within a day.
-    """
+<div style="
+    border-left: 4px solid #E10600;
+    background: linear-gradient(135deg, rgba(225,6,0,0.18), rgba(225,6,0,0.06));
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    color: #F0F0F0;
+">
+  <div style="font-size: 1rem; font-weight: 800; color: #E10600; margin-bottom: 0.45rem;">
+    What is this?
+  </div>
+  <div>
+    Three Fantasy F1 teams running side-by-side across the full 2026 F1 season,
+    each picking lineups using a <strong>different decision-making approach</strong>.
+    The question is whether AI-assisted human play beats pure human judgement —
+    and whether either beats pure AI.
+    <br><br>
+    The leaderboard, charts, and per-round breakdowns on this site let you
+    watch all three teams race each other through the season. New races land
+    each weekend; this app updates within a day.
+  </div>
+</div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
