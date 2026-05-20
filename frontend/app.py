@@ -31,9 +31,9 @@ with st.sidebar:
 # Pages available to everyone (visitors + owner)
 public_pages = [
     st.Page("views/landing.py", title="Home", default=True),
+    st.Page("pages/05_about.py", title="About & FAQ"),
     st.Page("pages/03_performance.py", title="Performance"),
     st.Page("pages/04_history.py", title="History"),
-    st.Page("pages/05_about.py", title="About & FAQ"),
 ]
 
 # Owner-only pages (the race-week workflow)

@@ -22,9 +22,10 @@ st.caption("How this experiment works, what the model sees, and what to read int
 st.markdown("---")
 
 
-with st.expander("**What is this?**", expanded=True):
-    st.markdown(
-        """
+st.info(
+    """
+**What is this?**
+
 Three Fantasy F1 teams running side-by-side across the full 2026 F1 season,
 each picking lineups using a **different decision-making approach**. The
 question is whether AI-assisted human play beats pure human judgement —
@@ -33,8 +34,8 @@ and whether either beats pure AI.
 The leaderboard, charts, and per-round breakdowns on this site let you
 watch all three teams race each other through the season. New races land
 each weekend; this app updates within a day.
-        """
-    )
+    """
+)
 
 
 with st.expander("**How does Fantasy F1 work?**"):
@@ -205,6 +206,45 @@ wrong place. The fix lands in the next retrain, not as a manual
 override at lock-in. Keeping the model's decisions intact (even the
 bad ones) is how the experiment honestly measures the AI approach
 against the human and pure-AI ones.
+        """
+    )
+
+
+with st.expander("**Why choose 2026, and why does the data science model look rough early?**"):
+    st.markdown(
+        """
+Short answer: **2026 is the hardest possible year to start this experiment**, by design.
+
+**Why regulations change in F1 (plain English):**
+- F1 periodically rewrites technical rules to reset competition, improve safety,
+  control costs, and push engineering in specific directions (for example:
+  cleaner power units, aero changes, or easier overtaking).
+- When rules change, teams effectively build new cars under new constraints.
+  Even top teams can rise or fall unexpectedly.
+
+**Why this hurts historical models:**
+- Most models learn from patterns in past data ("this team tends to be strong
+  here", "this driver-team combo behaves like X").
+- In 2026, many of those patterns break. It's not a small setup tweak year;
+  it's closer to a **full-stack reset** (car concept + aero + powertrain era
+  context), so past seasons are less reliable as a guide.
+- Bottom line: early-season model performance is expected to be noisy.
+  The first few rounds are about collecting fresh signal, then improving as
+  retrains absorb real 2026 race outcomes.
+
+**Also important: this project currently does *not* ingest qualitative intel.**
+- The model and pure-chat AI mostly see structured race data.
+- They do **not** directly read preseason reports, testing analysis, paddock
+  rumours, or expert commentary unless that is manually encoded.
+- Human judgement *does* use that info. Example:
+  - Williams preseason issues (including missed safety-test running) implied
+    less prep data than the historical trend suggested.
+  - Aston Martin reports suggested severe drivability/bump issues over long
+    race stints, which made reliability/performance riskier than historical
+    numbers alone would imply.
+
+So if the human team avoids something that looks statistically okay on paper,
+that can be because it used context that the current model stack never saw.
         """
     )
 
