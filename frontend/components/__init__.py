@@ -8,6 +8,7 @@ from frontend.components.charts import (
     prediction_vs_actual_chart,
 )
 from frontend.components.common import (
+    callout,
     file_download_button,
     readonly_notice,
     render_health_table,
@@ -30,6 +31,7 @@ from frontend.components.theme import (
 __all__ = [
     "role_badge",
     "readonly_notice",
+    "callout",
     "render_health_table",
     "show_diff",
     "file_download_button",

@@ -18,6 +18,30 @@ def readonly_notice() -> None:
     st.warning("Visitor mode: editing and PR writeback are disabled.")
 
 
+def callout(title: str, body_html: str, title_color: str = "#E10600") -> None:
+    """Render a reusable callout with built-in spacing below."""
+    st.markdown(
+        f"""
+<div style="
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.03);
+    padding: 1rem 1.1rem;
+    border-radius: 8px;
+    color: #F0F0F0;
+    margin-bottom: 0.9rem;
+">
+  <div style="font-size: 1rem; font-weight: 800; color: {title_color}; margin-bottom: 0.45rem;">
+    {title}
+  </div>
+  <div style="line-height: 1.5;">
+    {body_html}
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_health_table(health: dict) -> None:
     rows = []
     for name, fh in health.items():
