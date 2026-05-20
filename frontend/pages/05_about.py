@@ -85,11 +85,12 @@ with st.expander("**Who are the three teams + how do they pick lineups?**"):
    model trained on 2018–2025 F1 data, ingesting 2026 results as the
    season progresses, plus engineered features for what Sarah believes
    matters (track characteristics, driver skill independent of car,
-   team-year performance, weather, sprint flags, etc.). Sarah still
-   makes the final lock-in decision — she can override what the model
-   recommends, which sometimes happens (e.g. the model overestimated
-   Perez in a Cadillac early on because of his Red Bull history; Sarah
-   manually corrected it).
+   team-year performance, weather, sprint flags, etc.). The
+   recommendation that gets locked in is whatever the model produces —
+   on-the-spot manual overrides are avoided so the experiment measures
+   the model's actual decisions, not a hybrid. When the model gets
+   something obviously wrong, it's a signal to fix the model (retrain,
+   add a feature, tune a knob), not to paper over it at lock-in.
         """
     )
 
@@ -198,9 +199,12 @@ Three main reasons it gets things wrong:
    based on a stale view.
 
 When you see a recommendation that obviously contradicts a real-world
-fact, that's where Sarah overrides — and the experiment specifically
-captures those moments, because they're the most interesting data
-about where ML helps vs hurts vs misses entirely.
+fact, that's a signal that something needs fixing in the model
+itself — a missing feature, a stale prediction, a tuning knob in the
+wrong place. The fix lands in the next retrain, not as a manual
+override at lock-in. Keeping the model's decisions intact (even the
+bad ones) is how the experiment honestly measures the AI approach
+against the human and pure-AI ones.
         """
     )
 
