@@ -32,6 +32,7 @@ def init_session_state() -> None:
     st.session_state.setdefault("draft_cfg", None)
     st.session_state.setdefault("last_recommendation", None)
     st.session_state.setdefault("last_transfer_recommendation", None)
+    st.session_state.setdefault("owner_login_requested", False)
 
 
 def _ensure_cfg_loaded() -> None:
@@ -66,11 +67,47 @@ def require_auth() -> None:
     if auth_role() not in {"owner", "visitor"}:
         st.session_state["auth_role"] = "visitor"
 
+    if is_owner():
+        return
+
+    if not st.session_state.get("owner_login_requested"):
+        return
+
+    from frontend.components import inject_theme
+
+    inject_theme()
+    st.title("Fantasy F1 2026")
+    st.caption("Team principal access")
+    st.write("")
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        with st.form("owner_login_form"):
+            st.markdown("##### Enter owner password")
+            password = st.text_input(
+                "Owner password",
+                type="password",
+                label_visibility="collapsed",
+                placeholder="Owner password",
+            )
+            submit = st.form_submit_button("Login as Team Principal", type="primary", use_container_width=True)
+        if submit:
+            if owner_password() and password.strip() == owner_password():
+                st.session_state["auth_role"] = "owner"
+                st.session_state["owner_login_requested"] = False
+                st.rerun()
+            st.error("Invalid owner password")
+
+        if st.button("Back to visitor view", use_container_width=True):
+            st.session_state["owner_login_requested"] = False
+            st.rerun()
+    st.stop()
+
 
 def owner_access_controls() -> None:
     if is_owner():
-        if st.button("Switch to visitor view", key="owner_switch_visitor", use_container_width=True):
+        if st.button("Switch to visitor view", key="owner_switch_visitor"):
             st.session_state["auth_role"] = "visitor"
+            st.session_state["owner_login_requested"] = False
             st.session_state["last_recommendation"] = None
             st.session_state["last_transfer_recommendation"] = None
             st.rerun()
@@ -79,21 +116,9 @@ def owner_access_controls() -> None:
     if not owner_password():
         return
 
-    st.text_input(
-        "Owner password",
-        type="password",
-        key="owner_login_password",
-        label_visibility="collapsed",
-        placeholder="Owner password",
-    )
-    if st.button("Owner login", key="owner_login_btn", use_container_width=True):
-        if st.session_state.get("owner_login_password", "").strip() == owner_password():
-            st.session_state["auth_role"] = "owner"
-            st.session_state["owner_login_password"] = ""
-            st.rerun()
-        else:
-            st.session_state["owner_login_password"] = ""
-            st.error("Invalid owner password")
+    if st.button("Team Principal login", key="owner_open_login"):
+        st.session_state["owner_login_requested"] = True
+        st.rerun()
 
 
 def github_settings_from_secrets() -> dict[str, str]:
