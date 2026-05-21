@@ -178,7 +178,11 @@ else:
         st.subheader("Accuracy over time")
         plot_df = acc[acc["round"].astype(int).isin(selected_rounds)]
         st.altair_chart(prediction_accuracy_chart(plot_df, calendar), use_container_width=True)
-        st.caption("Lower MAE = predictions closer to reality. Watch this trend downward as the model learns from 2026 results.")
+        st.caption(
+            "Lower MAE (Mean Average Error) = predictions closer to reality. "
+            "Watch this trend downward as the model learns from 2026 results.\n\n"
+            "Rounds marked X were cancelled."
+        )
 
         st.subheader("Per-round detail")
         for rnd in sorted(selected_rounds):

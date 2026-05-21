@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from frontend.components import F1_RED, cumulative_chart, inject_theme, team_color
+from frontend.components import F1_RED, inject_theme, per_round_chart, team_color
 from frontend.state import get_working_config, is_owner
 from src.ui_services import (
     THREE_TEAM_LABELS,
@@ -107,7 +107,7 @@ if latest_round:
 
 
 # ---------------------------------------------------------------------------
-# Cumulative points chart
+# Per-round points chart
 # ---------------------------------------------------------------------------
 st.markdown("---")
 st.header("Points over time")
@@ -115,6 +115,7 @@ st.header("Points over time")
 _cfg_for_calendar = get_working_config()
 _calendar = _cfg_for_calendar.get("season", {}).get("calendar", {})
 _cancelled = {r for r in calendar_rounds(_calendar) if is_cancelled(_calendar, r)}
+_sprint_rounds = set(_cfg_for_calendar.get("season", {}).get("sprint_rounds", []) or [])
 
 cum = cumulative_points_by_team(PROJECT_ROOT)
 if not cum.empty and _cancelled:
@@ -122,7 +123,8 @@ if not cum.empty and _cancelled:
 if cum.empty:
     st.info("No scored rounds yet — this chart fills in as the season progresses.")
 else:
-    st.altair_chart(cumulative_chart(cum, _calendar), use_container_width=True)
+    st.altair_chart(per_round_chart(cum, _calendar, sprint_rounds=_sprint_rounds), use_container_width=True)
+    st.caption("Side-by-side bars per race. ★ = sprint weekend (more scoring sessions -> higher totals).")
 
 
 # ---------------------------------------------------------------------------
