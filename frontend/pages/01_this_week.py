@@ -122,11 +122,31 @@ if st.button("Parse forecast", key="parse_forecast"):
         st.warning("Couldn't extract rain or temperature. Set them manually below.")
 
 wa, wb, wc = st.columns([1, 1, 2])
+
+
+def _clamp(v: float, lo: float, hi: float) -> float:
+    return max(lo, min(hi, v))
+
+
+# Guard against stale/out-of-range widget state causing StreamlitValueBelowMinError
+# on Cloud reruns after forecast parsing or app upgrades.
+try:
+    _seed_rain = float(st.session_state.get("wx_rain", weather.get("rain_probability", 0.0)))
+except Exception:
+    _seed_rain = float(weather.get("rain_probability", 0.0) or 0.0)
+try:
+    _seed_temp = float(st.session_state.get("wx_temp_c", weather.get("temperature_c", 22.0)))
+except Exception:
+    _seed_temp = float(weather.get("temperature_c", 22.0) or 22.0)
+
+st.session_state["wx_rain"] = _clamp(_seed_rain, 0.0, 1.0)
+st.session_state["wx_temp_c"] = _clamp(_seed_temp, -10.0, 55.0)
+
 with wa:
     rain = st.slider(
         "Rain probability",
         min_value=0.0, max_value=1.0,
-        value=float(st.session_state.get("wx_rain", weather.get("rain_probability", 0.0))),
+        value=float(st.session_state["wx_rain"]),
         step=0.05,
         key="wx_rain",
     )
@@ -134,7 +154,7 @@ with wb:
     temp_c = st.number_input(
         "Temperature (°C)",
         min_value=-10.0, max_value=55.0,
-        value=float(st.session_state.get("wx_temp_c", weather.get("temperature_c", 22.0))),
+        value=float(st.session_state["wx_temp_c"]),
         step=0.5,
         key="wx_temp_c",
     )
