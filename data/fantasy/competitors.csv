@@ -7,3 +7,6 @@ round,team_key,team_name,points
 3,human,Pure human judgement,175.0
 6,claude_chat,Pure-AI Claude chat,175.0
 6,human,Pure human judgement,153.0
+7,claude_chat,Pure-AI Claude chat,269.0
+7,human,Pure human judgement,296.0
+7,model,Vibe-coded data science model,120.0
