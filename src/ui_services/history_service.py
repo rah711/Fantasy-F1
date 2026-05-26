@@ -102,3 +102,29 @@ def update_actual_points(
     df.loc[df["round"].astype(int) == int(round_number), "actual_points"] = round(float(actual_points), 2)
     df.to_csv(p, index=False)
     return p
+
+
+def update_lockin_metadata(
+    project_root: str | Path,
+    round_number: int,
+    drs_boost: str | None = None,
+    chips_used: list[str] | None = None,
+    chip_details: str | None = None,
+) -> Path | None:
+    """Update lock-in metadata fields for an existing round in history.csv."""
+    p = history_path(project_root)
+    if not p.exists():
+        return None
+    df = load_history(project_root)
+    if df.empty or int(round_number) not in df["round"].astype(int).tolist():
+        return None
+    mask = df["round"].astype(int) == int(round_number)
+    if drs_boost is not None:
+        df.loc[mask, "drs_boost"] = str(drs_boost).upper() if str(drs_boost).strip() else ""
+    if chips_used is not None:
+        clean = [str(c).strip() for c in chips_used if str(c).strip()]
+        df.loc[mask, "chips_used"] = ",".join(clean)
+    if chip_details is not None:
+        df.loc[mask, "chip_details"] = str(chip_details)
+    df.to_csv(p, index=False)
+    return p

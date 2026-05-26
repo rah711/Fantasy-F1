@@ -31,6 +31,7 @@ from src.ui_services import (
     previous_active_round,
     propose_files_pr,
     update_actual_points,
+    update_lockin_metadata,
 )
 from src.ui_services.season_service import breakdowns_path
 from src.ui_services.season_service import competitors_path
@@ -171,6 +172,57 @@ for w in human_warns + claude_warns + model_warns:
 
 st.write("")
 
+# ---------------------------------------------------------------------------
+# Optional model metadata edits (chip + DRS)
+# ---------------------------------------------------------------------------
+existing_drs = ""
+existing_chip = "none"
+existing_chip_details = ""
+if not hist_row.empty:
+    existing_drs = str(hist_row.iloc[0].get("drs_boost", "") or "").upper()
+    chip_csv = str(hist_row.iloc[0].get("chips_used", "") or "").strip()
+    if chip_csv:
+        existing_chip = chip_csv.split(",")[0].strip()
+    existing_chip_details = str(hist_row.iloc[0].get("chip_details", "") or "")
+
+all_chip_options = [
+    "autopilot",
+    "extra_drs_boost",
+    "no_negative",
+    "wildcard",
+    "limitless",
+    "final_fix",
+]
+
+st.header("3. Model lock-in metadata (optional)")
+st.caption(
+    "Use this when scoring a round to record chip usage and who received the 2× DRS boost."
+)
+md1, md2 = st.columns(2)
+with md1:
+    drs_options = [""] + sorted((cfg.get("prices", {}).get("drivers", {}) or {}).keys())
+    default_drs_index = drs_options.index(existing_drs) if existing_drs in drs_options else 0
+    scored_drs_boost = st.selectbox(
+        "2× DRS driver used by model team",
+        options=drs_options,
+        index=default_drs_index,
+        format_func=lambda d: "— not set —" if d == "" else d,
+    )
+with md2:
+    chip_options = ["none"] + all_chip_options
+    default_chip_index = chip_options.index(existing_chip) if existing_chip in chip_options else 0
+    scored_chip_used = st.selectbox(
+        "Chip used by model team this round",
+        options=chip_options,
+        index=default_chip_index,
+    )
+scored_chip_details = st.text_input(
+    "Chip details (optional)",
+    value=existing_chip_details,
+    placeholder="e.g. 3× on RUS, 2× on HAM",
+    disabled=(scored_chip_used == "none"),
+)
+
 if st.button("Save scores for this round", type="primary", key="save_scores"):
     paths_changed: list[str] = []
 
@@ -179,6 +231,15 @@ if st.button("Save scores for this round", type="primary", key="save_scores"):
         p = update_actual_points(PROJECT_ROOT, int(round_number), float(model_pts))
         if p:
             paths_changed.append(str(p))
+        p_meta = update_lockin_metadata(
+            PROJECT_ROOT,
+            int(round_number),
+            drs_boost=(scored_drs_boost or None),
+            chips_used=([scored_chip_used] if scored_chip_used != "none" else []),
+            chip_details=(scored_chip_details if scored_chip_used != "none" else ""),
+        )
+        if p_meta:
+            paths_changed.append(str(p_meta))
 
     # 2. Append/replace competitor rows
     p_human = append_competitor_score(PROJECT_ROOT, int(round_number), "human", float(human_pts))
@@ -203,6 +264,8 @@ if st.button("Save scores for this round", type="primary", key="save_scores"):
     paths_changed += [str(p_human), str(p_claude)]
 
     st.success(f"Saved scores for R{int(round_number)}: human {human_pts:.1f} · claude {claude_pts:.1f} · model {model_pts:.1f}")
+    if hist_row.empty:
+        st.info("No model lock-in row exists for this round yet, so chip/DRS metadata was not written to history.csv.")
     for pth in paths_changed:
         st.caption(f"Updated {pth}")
 

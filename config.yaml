@@ -625,12 +625,12 @@ optimizer:
 # --- Current Team State (update after each race) ---
 # Set this to your actual team after each race weekend.
 current_team:
-  drivers: ["LAW", "SAI", "GAS", "BEA", "RUS"]
-  constructors: ["ferrari", "racing_bulls"]
+  drivers: ["RUS", "ALB", "GAS", "HAD", "BEA"]
+  constructors: ["ferrari", "haas"]
   drs_boost: "RUS"
   budget: 2.5        # Bank remaining after R3 transfers
-  free_transfers: 2  # Standard allowance for next window (R4)
-  banked_transfers: 0
+  free_transfers: 2  # Standard weekly allowance
+  banked_transfers: 1  # 1 stored from last round -> 3 available this week
   chips_used: []
   chips_remaining:
     - autopilot

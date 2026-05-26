@@ -33,6 +33,7 @@ from src.ui_services.history_service import (
     history_path,
     load_history,
     update_actual_points,
+    update_lockin_metadata,
 )
 from src.ui_services.recommendation_service import recommend_round, recommend_transfers
 from src.ui_services.season_service import (
@@ -82,6 +83,7 @@ __all__ = [
     "append_lockin",
     "history_path",
     "update_actual_points",
+    "update_lockin_metadata",
     "WeatherParse",
     "parse_weather_description",
     "c_to_f",

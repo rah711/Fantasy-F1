@@ -249,6 +249,40 @@ with tabs[0]:
                 for w in ctor_res.warnings:
                     st.warning(f"Constructors: {w}")
 
+    st.markdown("---")
+    st.markdown("##### Transfer allowance for this week")
+    st.caption(
+        "Set this before clicking **Generate** so transfer recommendations use the correct free-transfer allowance."
+    )
+    tf1, tf2 = st.columns(2)
+    with tf1:
+        manual_free = st.number_input(
+            "Free transfers available now",
+            min_value=0,
+            max_value=10,
+            value=int(team.get("free_transfers", 2)),
+            step=1,
+            key="manual_free_transfers_now",
+        )
+    with tf2:
+        manual_banked = st.number_input(
+            "Banked transfers available now",
+            min_value=0,
+            max_value=10,
+            value=int(team.get("banked_transfers", 0)),
+            step=1,
+            key="manual_banked_transfers_now",
+        )
+    if st.button("Apply transfer allowance", key="apply_transfer_allowance"):
+        cfg_now = get_working_config()
+        ct = cfg_now.setdefault("current_team", {})
+        ct["free_transfers"] = int(manual_free)
+        ct["banked_transfers"] = int(manual_banked)
+        set_working_config(cfg_now)
+        st.success(
+            f"Updated current team transfer state: free={int(manual_free)}, banked={int(manual_banked)}."
+        )
+
 with tabs[1]:
     text = _csv_input("race results", "race_res", _RACE_EXAMPLE)
     if st.button("Save race results", key="save_race"):
