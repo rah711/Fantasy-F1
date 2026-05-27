@@ -58,12 +58,42 @@ cfg = get_working_config()
 season = cfg.get("season", {})
 calendar = season.get("calendar", {})
 weather = cfg.get("weather_override", {})
-default_round = previous_active_round(calendar, int(weather.get("next_race_round", 1)))
+hist = load_history(PROJECT_ROOT)
+comp_df = load_competitor_history(PROJECT_ROOT)
+
+
+def _is_round_fully_scored(round_num: int) -> bool:
+    # Model team score exists in history.csv as actual_points
+    model_scored = False
+    if not hist.empty:
+        rows = hist[hist["round"].astype(int) == int(round_num)]
+        if not rows.empty:
+            val = rows.iloc[0].get("actual_points", "")
+            try:
+                model_scored = str(val).strip() not in {"", "nan"} and pd.notna(float(val))
+            except (TypeError, ValueError):
+                model_scored = False
+
+    # Human + Claude scores exist in competitors.csv
+    human_scored = False
+    claude_scored = False
+    if not comp_df.empty:
+        crows = comp_df[comp_df["round"].astype(int) == int(round_num)]
+        if not crows.empty:
+            keys = set(crows["team_key"].astype(str))
+            human_scored = "human" in keys
+            claude_scored = "claude_chat" in keys
+
+    return model_scored and human_scored and claude_scored
 
 st.header("1. Pick the round")
 all_rounds = calendar_rounds(calendar, include_cancelled=True) or list(range(1, int(season.get("total_rounds", 24)) + 1))
+active_rounds = [r for r in all_rounds if not is_cancelled(calendar, int(r))]
+next_unscored = next((int(r) for r in active_rounds if not _is_round_fully_scored(int(r))), None)
+if next_unscored is None:
+    next_unscored = previous_active_round(calendar, int(weather.get("next_race_round", 1)))
 try:
-    default_index = all_rounds.index(default_round)
+    default_index = all_rounds.index(next_unscored)
 except ValueError:
     default_index = 0
 round_number = st.selectbox(
@@ -71,14 +101,13 @@ round_number = st.selectbox(
     options=all_rounds,
     index=default_index,
     format_func=lambda r: format_round_label(calendar, r),
-    help="Pick the round you're entering scores for. Cancelled rounds stay listed but flagged.",
+    help="Defaults to the next unscored active round. Cancelled rounds stay listed but flagged.",
 )
 
 
 # ---------------------------------------------------------------------------
 # Existing entries for this round
 # ---------------------------------------------------------------------------
-hist = load_history(PROJECT_ROOT)
 hist_row = hist[hist["round"].astype(int) == int(round_number)] if not hist.empty else pd.DataFrame()
 existing_model_pts = None
 if not hist_row.empty:
@@ -88,7 +117,6 @@ if not hist_row.empty:
     except (TypeError, ValueError):
         existing_model_pts = None
 
-comp_df = load_competitor_history(PROJECT_ROOT)
 comp_round = comp_df[comp_df["round"].astype(int) == int(round_number)] if not comp_df.empty else pd.DataFrame()
 existing_human = comp_round[comp_round["team_key"] == "human"]["points"].iloc[0] if not comp_round.empty and (comp_round["team_key"] == "human").any() else None
 existing_claude = comp_round[comp_round["team_key"] == "claude_chat"]["points"].iloc[0] if not comp_round.empty and (comp_round["team_key"] == "claude_chat").any() else None

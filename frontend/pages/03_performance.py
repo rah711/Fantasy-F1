@@ -25,6 +25,7 @@ from src.ui_services import (
     current_leaderboard,
     format_round_label,
     is_cancelled,
+    load_chip_usage,
     load_history,
     prediction_accuracy_over_time,
     prediction_vs_actual,
@@ -92,6 +93,23 @@ else:
     with tab_cum:
         st.altair_chart(cumulative_chart(cum, calendar), use_container_width=True)
         st.caption("Cumulative season totals. Always going up — use the other tabs for round-by-round insight.")
+
+# ---------------------------------------------------------------------------
+# Chip usage context
+# ---------------------------------------------------------------------------
+st.markdown("---")
+st.header("Chip usage timeline")
+chips = _drop_cancelled(load_chip_usage(PROJECT_ROOT))
+if chips.empty:
+    st.caption("No chips recorded yet.")
+else:
+    chips = chips.copy().sort_values(["round", "team_key"])
+    chips["Race"] = chips["round"].astype(int).apply(lambda r: format_round_label(calendar, r, short=True))
+    display = chips[["Race", "team_name", "chip", "details"]].rename(
+        columns={"team_name": "Team", "chip": "Chip", "details": "Notes"}
+    )
+    st.dataframe(display, use_container_width=True, hide_index=True)
+    st.caption("Context: chips can create large one-off score jumps, so use this timeline when comparing round-to-round results.")
 
 
 # ---------------------------------------------------------------------------

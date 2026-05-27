@@ -28,6 +28,10 @@ def competitors_path(project_root: str | Path) -> Path:
     return Path(project_root) / "data" / "fantasy" / "competitors.csv"
 
 
+def chips_path(project_root: str | Path) -> Path:
+    return Path(project_root) / "data" / "fantasy" / "chips.csv"
+
+
 def breakdowns_path(project_root: str | Path) -> Path:
     return Path(project_root) / "data" / "fantasy" / "breakdowns.csv"
 
@@ -101,6 +105,19 @@ def load_competitor_history(project_root: str | Path) -> pd.DataFrame:
     df = pd.read_csv(p)
     if "team_name" not in df.columns and "team_key" in df.columns:
         df["team_name"] = df["team_key"].map(THREE_TEAM_LABELS).fillna(df["team_key"])
+    return df
+
+
+def load_chip_usage(project_root: str | Path) -> pd.DataFrame:
+    """Long-form chip usage log: round, team_key, chip, details."""
+    p = chips_path(project_root)
+    if not p.exists():
+        return pd.DataFrame(columns=["round", "team_key", "team_name", "chip", "details"])
+    df = pd.read_csv(p)
+    if "team_name" not in df.columns and "team_key" in df.columns:
+        df["team_name"] = df["team_key"].map(THREE_TEAM_LABELS).fillna(df["team_key"])
+    if "details" not in df.columns:
+        df["details"] = ""
     return df
 
 
